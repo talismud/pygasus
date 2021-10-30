@@ -5,19 +5,32 @@ line-length = 79
 name = "pygasus"
 version = "0.4"
 description = "A lightweight ORM built on top of Pydantic"
-
-license = "BSD3"
-
+license = "BSD-3-Clause"
 authors = [
     "Vincent Le Goff <vincent.legoff.srs@gmail.com>"
 ]
-
 readme = 'README.md'  # Markdown files are supported
-
 repository = "https://github.com/talismud/pygasus"
 homepage = "https://github.com/talismud/pygasus"
-
+documentation = "https://github.com/talismud/pygasus"
 keywords = ['ORM', 'Pydantic', 'SQL', 'SQLAlchemy']
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Database",
+]
+include = [
+    "LICENSE",
+]
 
 [tool.poetry.dependencies]
 python = ">=3.7"  # Compatible python versions must be declared here
