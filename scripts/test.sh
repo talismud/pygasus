@@ -20,9 +20,19 @@ test_one() {
 test() {
   version=$1
   if [[ -z "$version" ]] || [[ "$version" == "all" ]]; then
+    failed=0
     for version in ${PYTHON_VERSIONS[@]}; do
       test_one "$version"
+      if [ $? -ne 0 ]; then
+        ((failed+=1))
+      fi
     done
+
+    # If any fails, stop here.
+    if [ "$failed" -ne 0 ]; then
+      echo "${failed} test suites failed."
+      exit 1
+    fi
   else
     test_one "$version"
   fi
