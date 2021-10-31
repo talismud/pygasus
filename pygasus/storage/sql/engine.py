@@ -108,6 +108,7 @@ class SQLStorageEngine(AbstractStorageEngine):
         """
         self.file_name = file_name if not memory else None
         self.memory = memory
+        self.logging = logging
 
         # Connect to the database.
         if memory:
@@ -131,10 +132,9 @@ class SQLStorageEngine(AbstractStorageEngine):
             dbapi_connection.create_function("pylower", 1, str.lower)
 
         # Intercept requests to log them, if set.
-        if logging:
-
-            @event.listens_for(self.engine, "before_cursor_execute")
-            def log_query(conn, cr, statement, parameters, *_):
+        @event.listens_for(self.engine, "before_cursor_execute")
+        def log_query(conn, cr, statement, parameters, *_):
+            if self.logging:
                 print(statement.strip(), parameters)
 
         self.connection = self.engine.connect()
