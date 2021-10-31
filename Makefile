@@ -23,6 +23,10 @@ check-style:
 clean:
 	@bash scripts/clean.sh
 
+# coverage: run the test coverage for Pygasus
+coverage:
+	@bash scripts/coverage.sh
+
 # format: Reformat the code using a linter.
 format:
 	@bash scripts/format.sh
