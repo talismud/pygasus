@@ -12,7 +12,7 @@ source "scripts/common.sh"
 coverage_one() {
   build_image_if_necessary "$1"
   docker run -v "/$(pwd):/usr/src/app" -it --rm "pygasus-$1" bash -c '
-    pytest --cov=pygasus tests -sq --no-header
+    pytest --cov=pygasus --cov-report term-missing tests -sq --no-header
     python -VV | head -n 1'
 }
 
