@@ -1,3 +1,8 @@
+from datetime import datetime
+from typing import Optional
+
+from pydantic import EmailStr
+
 from pygasus.model import Field, Model
 
 
@@ -9,6 +14,8 @@ class User(Model):
     name: str
     age: int
     height: float
+    creation: datetime = Field(default_factory=datetime.utcnow)
+    email: Optional[EmailStr] = Field("test@test.com", index=True, unique=True)
 
 
 def test_create(db):
@@ -21,6 +28,7 @@ def test_create(db):
     assert user.name == "Vincent"
     assert user.age == 33
     assert user.height == 5.7
+    assert user.email == "test@test.com"
 
 
 def test_create_and_get(db):
@@ -45,6 +53,7 @@ def test_create_and_retrieve_with_a_clean_cache(db):
     assert user.name == retrieved.name
     assert user.age == retrieved.age
     assert user.height == retrieved.height
+    assert user.email == retrieved.email
 
 
 def test_update(db):
@@ -58,6 +67,7 @@ def test_update(db):
     assert user.name == "Vincent"
     assert user.age == 21
     assert user.height == 5.7
+    assert user.email == "test@test.com"
 
 
 def test_update_and_get(db):
@@ -84,6 +94,7 @@ def test_update_and_retrieve_with_a_clean_cache(db):
     assert user.name == retrieved.name
     assert user.age == retrieved.age
     assert user.height == retrieved.height
+    assert user.email == "test@test.com"
 
 
 def test_delete(db):
