@@ -215,7 +215,7 @@ class AbstractStorageEngine(metaclass=ABCMeta):
         # At this point, no unique field was found.
         raise ValueError(
             "no back field could be found for the relationship "
-            f"{model.__name__}.{field.__name__}.  Possible candidates "
+            f"{model.__name__}.{field.name}.  Possible candidates "
             f"are: {fields}.  Perhaps you forgot to add a back reference "
             f"in the {left.__name__} model?"
         )

@@ -59,6 +59,10 @@ class Sequence(GenericModel, MutableSequence, Generic[model]):
         super().__init__(*args, **kwargs)
         self._loaded = False
 
+    def __contains__(self, model):
+        self.load_from_storage()
+        return any(model == contained for contained in self.models)
+
     def __getitem__(self, index: int) -> model:
         return self.models[index]
 
@@ -97,6 +101,7 @@ class Sequence(GenericModel, MutableSequence, Generic[model]):
         kwargs[self.right_field.name] = self.parent
         obj = self.right_model.repository.create(**kwargs)
         self.append(obj)
+        return obj
 
     def load_from_storage(self):
         """Load the list from the storage system."""

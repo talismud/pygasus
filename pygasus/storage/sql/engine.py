@@ -181,7 +181,7 @@ class SQLStorageEngine(AbstractStorageEngine):
             o_type = field.outer_type_
             f_type = field.type_
             origin = get_origin(o_type)
-            if origin is list:
+            if origin is list or o_type is Sequence[f_type]:
                 # Analyze the back field.  If it's a list too, an
                 # intermediate table should be created.
                 field.outer_type_ = Sequence[f_type]
@@ -391,8 +391,10 @@ class SQLStorageEngine(AbstractStorageEngine):
         if obj is not None:
             return obj
 
-        columns = self._get_columns_for(model)
+        columns, tables = self._get_columns_for(model)
         query = select(*columns)
+        for join in tables:
+            query = query.join(table)
         where = []
         for column, value in kwargs.items():
             where.append(getattr(table.c, column) == value)
@@ -436,8 +438,11 @@ class SQLStorageEngine(AbstractStorageEngine):
                 if value is not ...:
                     pks[name] = value
 
-        columns = self._get_columns_for(model)
+        columns, tables = self._get_columns_for(model)
         query = select(*columns)
+        for join in tables:
+            query = query.join(join)
+
         where = []
         for column, value in pks.items():
             where.append(getattr(table.c, column) == value)
@@ -528,18 +533,31 @@ class SQLStorageEngine(AbstractStorageEngine):
         )
         columns = []
         table = self.tables[model_name]
+        tables = []
         for name, field in model.__fields__.items():
             o_type = field.outer_type_
             f_type = field.type_
             if issubclass(f_type, Model) and o_type is not Sequence[f_type]:
                 # Join up.
-                columns.extend(self._get_columns_for(f_type))
+                tables.append(
+                    self.tables[
+                        getattr(
+                            f_type.__config__,
+                            "model_name",
+                            f_type.__name__.lower(),
+                        )
+                    ]
+                )
+
+                other_columns, other_tables = self._get_columns_for(f_type)
+                columns.extend(other_columns)
+                tables.extend(other_tables)
             elif o_type is not Sequence[f_type]:
                 columns.append(
                     getattr(table.c, name).label(f"{model_name}_{name}")
                 )
 
-        return columns
+        return columns, tables
 
     def _build_objects_from_row(
         self,

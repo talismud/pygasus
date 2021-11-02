@@ -81,6 +81,7 @@ from pydantic import BaseModel, Field, PrivateAttr  # noqa: F401
 from pydantic.main import ModelMetaclass
 
 from pygasus.model.decorators import LazyPropertyDescriptor, lazy_property
+from pygasus.model.helpers import get_primary_keys
 from pygasus.model.repository import Repository
 from pygasus.model.collections import Sequence
 
@@ -159,6 +160,27 @@ class Model(BaseModel, metaclass=MetaModel):
             repository = type(self).repository
             if repository:
                 repository.update(self, key, old_value, value)
+
+    def __eq__(self, other):
+        """Don't compare dict like Pydantic does, just compare field values."""
+        if not isinstance(other, type(self)):
+            return False
+
+        common = True
+        for name, field in self.__fields__.items():
+            value1 = getattr(self, name, ...)
+            value2 = getattr(other, name, ...)
+            if isinstance(value1, Model) or isinstance(value2, Model):
+                common = get_primary_keys(
+                    value1, include_model_name=True
+                ) == get_primary_keys(value2, include_model_name=True)
+            elif value1 != value2:
+                common = False
+
+            if not common:
+                break
+
+        return common
 
 
 def load_repository(path: str, model: Type[Model]) -> Repository:
