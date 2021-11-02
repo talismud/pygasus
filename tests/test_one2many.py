@@ -75,3 +75,23 @@ def test_create_two_lists(db):
     )
     assert carol in dickens.books
     assert oliver in dickens.books
+
+
+def test_representations(db):
+    """Test the model's representations."""
+    db.bind({Author, Book})
+    dickens = Author.repository.create(
+        first_name="Charles",
+        last_name="Dickens",
+        born_in=1812,
+    )
+    carol = dickens.books.append_new(
+        title="A Christmas Carol",
+        year=1843,
+    )
+    oliver = dickens.books.append_new(
+        title="Oliver Twist",
+        year=1837,
+    )
+    assert isinstance(str(dickens.books), str)
+    assert isinstance(repr(dickens.books), str)

@@ -35,6 +35,8 @@ from typing import Any, Generic, List, TypeVar
 from pydantic import PrivateAttr
 from pydantic.generics import GenericModel
 
+from pygasus.model.helpers import get_primary_keys
+
 model = TypeVar("model")
 
 
@@ -76,10 +78,31 @@ class Sequence(GenericModel, MutableSequence, Generic[model]):
         return len(self.models)
 
     def __repr__(self) -> str:
-        return repr(self.models)
+        sequence = []
+        for element in self.models:
+            representation = "<"
+            representation += type(element).__name__
+            representation += "("
+            fields = []
+            for name, value in get_primary_keys(element).items():
+                fields.append(f"{name}={value!r}")
+            representation += ", ".join(fields)
+            representation += ")>"
+            sequence.append(representation)
+        return f"[{', '.join(sequence)}]"
 
     def __str__(self) -> str:
-        return str(self.models)
+        sequence = []
+        for element in self.models:
+            representation = type(element).__name__
+            representation += "("
+            fields = []
+            for name, value in get_primary_keys(element).items():
+                fields.append(f"{name}={value!r}")
+            representation += ", ".join(fields)
+            representation += ")"
+            sequence.append(representation)
+        return f"[{', '.join(sequence)}]"
 
     def __iter__(self):
         return iter(self.models)
