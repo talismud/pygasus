@@ -104,6 +104,15 @@ class Sequence(GenericModel, MutableSequence, Generic[model]):
             sequence.append(representation)
         return f"[{', '.join(sequence)}]"
 
+    def __eq__(self, other):
+        """Compare self to a list."""
+        if isinstance(other, Sequence):
+            other = other.models
+
+        return len(self.models) == len(other) and all(
+            mod1 == mod2 for mod1, mod2 in zip(self.models, other)
+        )
+
     def __iter__(self):
         return iter(self.models)
 
@@ -124,6 +133,27 @@ class Sequence(GenericModel, MutableSequence, Generic[model]):
         kwargs[self.right_field.name] = self.parent
         obj = self.right_model.repository.create(**kwargs)
         self.append(obj)
+        return obj
+
+    def insert_new(self, *args, **kwargs) -> model:
+        """Insert a new model object to the list.
+
+        Args:
+            index (int): the index at which to insert the object.
+            Additional keyword arguments are supported.  They're used
+            to create the new model, using the model's repository.
+
+        Returns:
+            model (model instance): the appended model.
+
+        """
+        if len(args) != 1:
+            raise ValueError("you must specify only one positional argument")
+
+        index = args[0]
+        kwargs[self.right_field.name] = self.parent
+        obj = self.right_model.repository.create(**kwargs)
+        self.insert(index, obj)
         return obj
 
     def load_from_storage(self):

@@ -1,5 +1,7 @@
 from typing import List
 
+import pytest
+
 from pygasus.model import Field, Model
 
 
@@ -95,3 +97,46 @@ def test_representations(db):
     )
     assert isinstance(str(dickens.books), str)
     assert isinstance(repr(dickens.books), str)
+
+
+@pytest.mark.xfail
+def test_list_order(db):
+    """Create two authors with lots of books to see if they retain order."""
+    db.bind({Author, Book})
+    dickens = Author.repository.create(
+        first_name="Charles",
+        last_name="Dickens",
+        born_in=1812,
+    )
+    london = Author.repository.create(
+        first_name="Jack",
+        last_name="London",
+        born_in=1876,
+    )
+
+    # Create and append a first set of books.
+    dickens_titles = [
+        {"title": "The Pickwick Papers", "year": 1836},
+        {"title": "Oliver Twist", "year": 1837},
+        {"title": "Nicholas Nickleby", "year": 1838},
+        {"title": "The Old Curiosity Shop", "year": 1840},
+        {"title": "Barnaby Rudge", "year": 1841},
+        {"title": "David Copperfield", "year": 1849},
+    ]
+    london_titles = [
+        {"title": "The Star Rover", "year": 1915},
+        {"title": "The Call of the Wild", "year": 1903},
+        {"title": "The Iron Heel", "year": 1908},
+    ]
+
+    dickens_books = []
+    for book in dickens_titles:
+        dickens_books.insert(0, dickens.books.insert_new(0, **book))
+    london_books = []
+    for book in london_titles:
+        london_books.insert(0, london.books.insert_new(0, **book))
+
+    # Make sure order is identical.
+    db.cache.clear()
+    dickens = Author.repository.get(id=dickens.id)
+    assert dickens.books == dickens_books
