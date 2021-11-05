@@ -131,7 +131,7 @@ class Sequence(GenericModel, MutableSequence, Generic[model]):
 
         """
         kwargs[self.right_field.name] = self.parent
-        obj = self.right_model.repository.create(**kwargs)
+        obj = self.right_model.repository.insert_at(len(self), **kwargs)
         self.append(obj)
         return obj
 
@@ -152,7 +152,7 @@ class Sequence(GenericModel, MutableSequence, Generic[model]):
 
         index = args[0]
         kwargs[self.right_field.name] = self.parent
-        obj = self.right_model.repository.create(**kwargs)
+        obj = self.right_model.repository.insert_at(index, **kwargs)
         self.insert(index, obj)
         return obj
 

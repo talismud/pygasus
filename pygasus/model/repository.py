@@ -56,7 +56,25 @@ class Repository:
                 hashed_password=b"something", ...)
 
         """
-        return self.storage_engine.insert(self.model, **data)
+        return self.storage_engine.insert(self.model, data)
+
+    def insert_at(self, *args, **data):
+        """Create an object at a given index.
+
+        Object fields are transmitted as keyword arguments.
+        The field must build a complete model object which
+        will be validated before a row is written to the
+        database.  However, keyword arguments that
+        contain information provided by the database
+        (such as autoincrement) aren't to be specified.
+
+        Args:
+            index (int): the index at which to place this model.
+            Keyword arguments to send to the model.
+
+        """
+        index = args[0]
+        return self.storage_engine.insert_at(self.model, data, index)
 
     def get(self, **data):
         """Retrieve a model instance.

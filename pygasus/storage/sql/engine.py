@@ -30,6 +30,7 @@
 """SQLAlchemy storage engine for Pygasus."""
 
 from datetime import date, datetime
+import operator
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Type, Union
 
@@ -211,6 +212,15 @@ class SQLStorageEngine(AbstractStorageEngine):
                             ForeignKey(f"{to_name}.{pname}"),
                         )
                     )
+
+                # Add sort options.
+                columns.append(
+                    Column(
+                        f"{name}__index",
+                        Integer,
+                        nullable=False,
+                    )
+                )
                 continue
 
             sql_type = SQL_TYPES.get(f_type)
@@ -263,15 +273,23 @@ class SQLStorageEngine(AbstractStorageEngine):
         self.models[model_name] = model
         self.tables[model_name] = Table(model_name, self.metadata, *columns)
 
-    def insert(self, model: Type[Model], **kwargs):
+    def insert(
+        self,
+        model: Type[Model],
+        attrs: Dict[str, Any],
+        additional: Optional[Dict[str, Any]] = None,
+    ) -> Model:
         """Add a new row for this model.
 
         The model is used to determine the collection in storage.
-        Keyword arguments are used to specify data for this new model.
 
         Args:
             model (subclass of Model): the model class.
-            Additional keyword arguments are expected.
+            attrs (dict): the model attributes.
+            additional (opt dict): other attributes, not used in the model.
+
+        Returns:
+            obj (Model): the new object.
 
         """
         model_name = getattr(
@@ -290,7 +308,7 @@ class SQLStorageEngine(AbstractStorageEngine):
                 continue
 
             if issubclass(f_type, Model):
-                right = kwargs[name]
+                right = attrs[name]
                 primary_keys = {
                     name: field
                     for name, field in f_type.__fields__.items()
@@ -305,11 +323,14 @@ class SQLStorageEngine(AbstractStorageEngine):
 
             pk = info.extra.get("primary_key", False)
             if pk and issubclass(f_type, int):
-                kwargs[name] = 1
+                attrs[name] = 1
                 exclude.add(name)
 
+        if additional:
+            sql.update(additional)
+
         # Validate the model object.
-        obj = model(**kwargs)
+        obj = model(**attrs)
 
         # Create a row.
         table = self.tables[model_name]
@@ -345,6 +366,64 @@ class SQLStorageEngine(AbstractStorageEngine):
                 obj._exists = True
 
         return obj
+
+    def insert_at(
+        self,
+        model: Type[Model],
+        attrs: Dict[str, Any],
+        index: int,
+        additional: Optional[Dict[str, Any]] = None,
+    ) -> Model:
+        """Add a new row at this index for this model.
+
+        The model is used to determine the collection in storage.
+
+        Args:
+            model (subclass of Model): the model class.
+            attrs (dict): the model attributes.
+            index (int): the index at which to add this object.
+            additional (opt dict): other attributes, not used in the model.
+
+        Returns:
+            obj (Model): the new object.
+
+        """
+        model_name = getattr(
+            model.__config__, "model_name", model.__name__.lower()
+        )
+        table = self.tables[model_name]
+        additional = {}
+        for name, field in model.__fields__.items():
+            o_type = field.outer_type_
+            f_type = field.type_
+            if issubclass(f_type, Model) and o_type is not Sequence[f_type]:
+                right = attrs[name]
+                cmp = operator.le if index < 0 else operator.ge
+                where = [cmp(getattr(table.c, f"{name}__index"), index)]
+                primary_keys = {
+                    name: field
+                    for name, field in f_type.__fields__.items()
+                    if field.field_info.extra.get("primary_key")
+                }
+
+                for pname, pfield in primary_keys.items():
+                    where.append(
+                        getattr(table.c, f"{name}_{pname}")
+                        == getattr(right, pname)
+                    )
+
+                # Create and send the query.
+                col_name = f"{name}__index"
+                col = getattr(table.c, col_name)
+                new_value = (col - 1) if index < 0 else (col + 1)
+                update = (
+                    table.update()
+                    .where(*where)
+                    .values({getattr(table.c, col_name): new_value})
+                )
+                self.connection.execute(update)
+                additional[col_name] = index
+        return self.insert(model, attrs, additional)
 
     def get(self, model: Type[Model], **kwargs):
         """Get a model instance with the specified arguments.
@@ -424,21 +503,25 @@ class SQLStorageEngine(AbstractStorageEngine):
         """
         # Create a filter query.
         parent = sequence.parent
-        model = sequence.right_model
+        left_model = sequence.left_model
+        right_model = sequence.right_model
         pks = {}
-        model_name = getattr(
-            model.__config__, "model_name", model.__name__.lower()
+        left_model_name = getattr(
+            left_model.__config__, "model_name", left_model.__name__.lower()
         )
-        table = self.tables[model_name]
-        for name, field in model.__fields__.items():
+        right_model_name = getattr(
+            right_model.__config__, "model_name", right_model.__name__.lower()
+        )
+        table = self.tables[right_model_name]
+        for name, field in right_model.__fields__.items():
             info = field.field_info
             pk = info.extra.get("primary_key", False)
             if pk:
                 value = getattr(parent, name, ...)
                 if value is not ...:
-                    pks[name] = value
+                    pks[f"{left_model_name}_{name}"] = value
 
-        columns, tables = self._get_columns_for(model)
+        columns, tables = self._get_columns_for(right_model)
         query = select(*columns)
         for join in tables:
             query = query.join(join)
@@ -448,10 +531,12 @@ class SQLStorageEngine(AbstractStorageEngine):
             where.append(getattr(table.c, column) == value)
         query = query.where(*where)
 
+        # Add ordering.
+        query = query.order_by(getattr(table.c, f"{left_model_name}__index"))
         # Send the query.
         rows = self.connection.execute(query).fetchall()
         objs = [
-            self._build_objects_from_row(dict(row), [model], first=True)
+            self._build_objects_from_row(dict(row), [right_model], first=True)
             for row in rows
         ]
         return objs

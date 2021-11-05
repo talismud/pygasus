@@ -26,23 +26,6 @@ class Book(Model):
     year: int
 
 
-def test_create_and_indirectly_connect(db):
-    """Create an author and a book."""
-    db.bind({Author, Book})
-    dickens = Author.repository.create(
-        first_name="Charles",
-        last_name="Dickens",
-        born_in=1812,
-    )
-    carol = Book.repository.create(
-        title="A Christmas Carol",
-        author=dickens,
-        year=1843,
-    )
-    assert carol.author is dickens
-    assert carol in dickens.books
-
-
 def test_create_and_directly_connect(db):
     """Create an author and a book, connecting them with append_new."""
     db.bind({Author, Book})
@@ -99,7 +82,6 @@ def test_representations(db):
     assert isinstance(repr(dickens.books), str)
 
 
-@pytest.mark.xfail
 def test_list_order(db):
     """Create two authors with lots of books to see if they retain order."""
     db.bind({Author, Book})
