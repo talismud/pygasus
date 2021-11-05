@@ -3,7 +3,7 @@ line-length = 79
 
 [tool.poetry]
 name = "pygasus"
-version = "0.4"
+version = "0.5"
 description = "A lightweight ORM built on top of Pydantic"
 license = "BSD-3-Clause"
 authors = [
