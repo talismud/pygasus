@@ -27,6 +27,20 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""Pygasus ORM."""
+"""SQLAlchemy query builder."""
 
-from pygasus.model import Field, Model  # noqa: F401
+from pygasus.storage.query_builder import AbstractQueryBuilder
+
+
+class SQLQueryBuilder(AbstractQueryBuilder):
+
+    """Query builder for SQLAlchemy."""
+
+    def eq(self, field, other):
+        """Compare field to other."""
+        model = field.__model__
+        model_name = getattr(
+            model.__config__, "model_name", model.__name__.lower()
+        )
+        table = self.storage_engine.tables[model_name]
+        return getattr(table.c, field.name) == other

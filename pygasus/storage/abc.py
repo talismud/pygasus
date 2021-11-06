@@ -33,6 +33,7 @@ from abc import ABCMeta, abstractmethod
 from typing import Dict, List, Optional, Set, Type
 
 from pygasus.model import Model, Sequence
+from pygasus.storage.query_builder import AbstractQueryBuilder
 
 
 class AbstractStorageEngine(metaclass=ABCMeta):
@@ -45,6 +46,8 @@ class AbstractStorageEngine(metaclass=ABCMeta):
     depends on the storage system being used.
 
     """
+
+    query_builder: AbstractQueryBuilder = None
 
     def __init__(self):
         self.models = {}

@@ -76,6 +76,19 @@ class Repository:
         index = args[0]
         return self.storage_engine.insert_at(self.model, data, index)
 
+    def select(self, query):
+        """Retrieve model instances based on a query.
+
+        Args:
+            The data to be sent to the database.
+            query: the query to filter models.
+
+        Examle:
+            account = repository.select(Account.username == "me")
+
+        """
+        return self.storage_engine.select(self.model, query)
+
     def get(self, **data):
         """Retrieve a model instance.
 

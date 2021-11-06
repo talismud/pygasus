@@ -27,6 +27,42 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""Pygasus ORM."""
+"""Abstract query builder.
 
-from pygasus.model import Field, Model  # noqa: F401
+The query builder is responsible for connecting generic, Pygasus
+queries with the selected storage engine.  For instance, when
+comparing a field against a value:
+
+```
+>>> User.id == 5
+<...>
+>>>
+```
+
+The selected `StorageEngine`, the one that has bound this model,
+will return a valid comparator used in queries.  This will speed
+up treatment and avoid generic to concrete conversion on the fly.
+
+"""
+
+from abc import ABCMeta, abstractmethod
+
+
+class AbstractQueryBuilder(metaclass=ABCMeta):
+
+    """Abstract query builder.
+
+    This class is responsible for connecting generic queries
+    to the storage engine.  Several methods are provided as abstract.
+
+    Abstract methods:
+        eq: provide == comparison.
+
+    """
+
+    def __init__(self, storage_engine):
+        self.storage_engine = storage_engine
+
+    @abstractmethod
+    def eq(self, field, other):
+        """Compare field to other."""

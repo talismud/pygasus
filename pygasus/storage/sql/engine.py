@@ -60,6 +60,7 @@ from sqlalchemy.sql import select
 
 from pygasus.model import Model, Sequence
 from pygasus.storage.abc import AbstractStorageEngine
+from pygasus.storage.sql.query_builder import SQLQueryBuilder
 
 SQL_TYPES = {
     bytes: LargeBinary,
@@ -82,6 +83,7 @@ class SQLStorageEngine(AbstractStorageEngine):
 
     def __init__(self):
         super().__init__()
+        self.query_builder = SQLQueryBuilder(self)
         self.file_name = None
         self.memory = False
         self.tables = {}
@@ -179,6 +181,8 @@ class SQLStorageEngine(AbstractStorageEngine):
         # Browse model fields, creating columsn, indexes and constraints.
         indexes = []
         for name, field in model.__fields__.items():
+            model.__pygasus__[name].__model__ = model
+            model.__pygasus__[name].__storage__ = self
             o_type = field.outer_type_
             f_type = field.type_
             origin = get_origin(o_type)
@@ -424,6 +428,35 @@ class SQLStorageEngine(AbstractStorageEngine):
                 self.connection.execute(update)
                 additional[col_name] = index
         return self.insert(model, attrs, additional)
+
+    def select(self, model: Type[Model], query):
+        """Select one or more model instances with the specified query.
+
+        Args:
+            model (subclass of Model): the model object.
+            query: the query object by which to filter.
+
+        Returns:
+            instances (list of Model): the model isntances or None.
+
+        """
+        model_name = getattr(
+            model.__config__, "model_name", model.__name__.lower()
+        )
+        table = self.tables[model_name]
+        models = [model]
+        columns, tables = self._get_columns_for(model)
+        sql = select(*columns)
+        for join in tables:
+            sql = sql.join(table)
+        sql = sql.where(query)
+
+        # Send the query.
+        rows = self.connection.execute(sql).fetchall()
+        return [
+            self._build_objects_from_row(dict(row), models, first=True)
+            for row in rows
+        ]
 
     def get(self, model: Type[Model], **kwargs):
         """Get a model instance with the specified arguments.
@@ -726,3 +759,15 @@ class SQLStorageEngine(AbstractStorageEngine):
             objs = [None]
 
         return objs[0] if first else objs
+
+    def equal(self, field, other):
+        """Compare field to other."""
+        model = field.__model__
+        model_name = getattr(
+            model.__config__, "model_name", model.__name__.lower()
+        )
+        table = self.tables[model_name]
+        return getattr(table.c, field.name) == other
+
+    def eq(self, field, other):
+        """Compare field to other."""

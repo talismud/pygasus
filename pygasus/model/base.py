@@ -81,6 +81,7 @@ from pydantic import BaseModel, Field, PrivateAttr  # noqa: F401
 from pydantic.main import ModelMetaclass
 
 from pygasus.model.decorators import LazyPropertyDescriptor, lazy_property
+from pygasus.model.field import PygasusField
 from pygasus.model.helpers import get_primary_keys
 from pygasus.model.repository import Repository
 from pygasus.model.collections import Sequence
@@ -94,8 +95,15 @@ class MetaModel(ModelMetaclass):
 
     def __new__(cls, name, bases, attrs):
         cls = super().__new__(cls, name, bases, attrs)
+        cls.__pygasus__ = {}
         if cls.__name__ != "Model":
             MODELS.add(cls)
+
+            # Wrap fields.
+            for name, field in cls.__fields__.items():
+                pygasus_field = PygasusField(field)
+                cls.__pygasus__[name] = pygasus_field
+                setattr(cls, name, pygasus_field)
         return cls
 
     @property
