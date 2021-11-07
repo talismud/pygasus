@@ -155,3 +155,45 @@ def test_create_flag_and_retrieve_it(db):
     for user in users:
         new_user = User.repository.get(id=user.id)
         assert new_user.access is user.access
+
+
+def test_create_int_enum_update_and_retrieve_it(db):
+    """Create a NTile object."""
+    db.bind({NTile})
+
+    tile = NTile.repository.create(x=0, y=0, color=NColor.RED)
+    tile.color = NColor.BLUE
+
+    # Retrieve it.
+    db.cache.clear()
+    tile = NTile.repository.get(id=tile.id)
+    assert tile.color is NColor.BLUE
+
+
+def test_create_str_enum_update_and_retrieve_it(db):
+    """Create a STile object."""
+    db.bind({STile})
+
+    tile = STile.repository.create(x=0, y=0, color=SColor.RED)
+    tile.color = SColor.BLUE
+
+    # Retrieve it.
+    db.cache.clear()
+    tile = STile.repository.get(id=tile.id)
+    assert tile.color is SColor.BLUE
+
+
+def test_create_flag_update_and_retrieve_it(db):
+    """Create a User object."""
+    db.bind({User})
+
+    user = User.repository.create(name="me", access=Access.READ)
+    user.access = Access.READ | Access.WRITE
+
+    # Retrieve it.
+    db.cache.clear()
+    user = User.repository.get(id=user.id)
+    assert user.access & Access.READ
+    assert user.access & Access.WRITE
+    assert not user.access & Access.EXECUTE
+

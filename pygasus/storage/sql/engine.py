@@ -621,6 +621,10 @@ class SQLStorageEngine(AbstractStorageEngine):
                 value = getattr(instance, name)
                 sql_primary_keys.append(getattr(sql_table.c, name) == value)
 
+        # Handles enum field.
+        if isinstance(new_value, enum.Enum):
+            new_value = new_value.value
+
         # Send the query.
         sql_columns = {key: new_value}
         update = (
