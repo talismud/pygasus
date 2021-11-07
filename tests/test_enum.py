@@ -119,3 +119,39 @@ def test_create_int_enum_and_retrieve_it(db):
     for tile in tiles:
         new_tile = NTile.repository.get(id=tile.id)
         assert new_tile.color is tile.color
+
+
+def test_create_str_enum_and_retrieve_it(db):
+    """Create a NTile object."""
+    db.bind({STile})
+
+    tiles = []
+    for member in SColor:
+        if member is SColor.INVALID:
+            continue
+
+        tiles.append(STile.repository.create(x=0, y=0, color=member))
+
+    # Retrieve them.
+    db.cache.clear()
+    for tile in tiles:
+        new_tile = STile.repository.get(id=tile.id)
+        assert new_tile.color is tile.color
+
+
+def test_create_flag_and_retrieve_it(db):
+    """Create a User object."""
+    db.bind({User})
+
+    users = []
+    for member in Access:
+        if member is Access.INVALID:
+            continue
+
+        users.append(User.repository.create(name="me", access=member))
+
+    # Retrieve them.
+    db.cache.clear()
+    for user in users:
+        new_user = User.repository.get(id=user.id)
+        assert new_user.access is user.access
