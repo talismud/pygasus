@@ -9,6 +9,7 @@ class NColor(Enum):
 
     """Enum containing color numbers."""
 
+    INVALID = 0
     RED = 1
     BLUE = 2
     GREEN = 3
@@ -20,11 +21,21 @@ class SColor(Enum):
 
     """Class containing color names."""
 
+    INVALID = "invalid"
     RED = "red"
     BLUE = "blue"
     GREEN = "green"
     PURPLE = "purple"
     BLACK = "black"
+
+
+class Access(Flag):
+
+    INVALID = 0
+    READ = 1
+    WRITE = 2
+    EXECUTE = 4
+    ALL = READ | WRITE | EXECUTE
 
 
 class NTile(Model):
@@ -47,16 +58,46 @@ class STile(Model):
     color: SColor
 
 
+class User(Model):
+
+    """A user with an access right."""
+
+    id: int = Field(primary_key=True)
+    name: str
+    access: Access
+
+
 def test_create_int_enum(db):
     """Create a NTile object."""
     db.bind({NTile})
-    tile = NTile.repository.create(x=0, y=0, color=NColor.RED)
-    assert tile is not None
+
+    for member in NColor:
+        if member is NColor.INVALID:
+            continue
+
+        tile = NTile.repository.create(x=0, y=0, color=member)
+        assert tile is not None
 
 
 def test_create_str_enum(db):
     """Create a NTile object."""
     db.bind({STile})
-    db.logging = True
-    tile = STile.repository.create(x=0, y=0, color=SColor.RED)
-    assert tile is not None
+
+    for member in SColor:
+        if member is SColor.INVALID:
+            continue
+
+        tile = STile.repository.create(x=0, y=0, color=member)
+        assert tile is not None
+
+
+def test_create_flag(db):
+    """Create a User object."""
+    db.bind({User})
+
+    for member in Access:
+        if member is Access.INVALID:
+            continue
+
+        user = User.repository.create(name="me", access=member)
+        assert user is not None

@@ -232,12 +232,17 @@ class SQLStorageEngine(AbstractStorageEngine):
             if issubclass(f_type, enum.Enum):
                 e_type = type(list(f_type)[0].value)
                 if not all(
-                    isinstance(member.value, e_type)
-                    for member in f_type
+                    isinstance(member.value, e_type) for member in f_type
                 ):
                     raise ValueError(
                         f"the enumeration {f_type} contains members 3"
                         "of different types"
+                    )
+                invalid_key = getattr(model.__config__, "invalid_enum_key", "INVALID")
+                if not hasattr(f_type, invalid_key):
+                    raise ValueError(
+                        f"{f_type} doesn't have an invalid key (key "
+                        f"{invalid_key!r})"
                     )
                 f_type = e_type
 
