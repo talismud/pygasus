@@ -238,7 +238,9 @@ class SQLStorageEngine(AbstractStorageEngine):
                         f"the enumeration {f_type} contains members 3"
                         "of different types"
                     )
-                invalid_key = getattr(model.__config__, "invalid_enum_key", "INVALID")
+                invalid_key = getattr(
+                    model.__config__, "invalid_enum_key", "INVALID"
+                )
                 if not hasattr(f_type, invalid_key):
                     raise ValueError(
                         f"{f_type} doesn't have an invalid key (key "
@@ -735,8 +737,8 @@ class SQLStorageEngine(AbstractStorageEngine):
                 o_type = field.outer_type_
                 f_type = field.type_
                 pk = info.extra.get("primary_key", False)
+                value = row.get(f"{model_name}_{name}", ...)
                 if pk:
-                    value = row.get(f"{model_name}_{name}", ...)
                     if value is not ...:
                         pks.append(value)
                     attrs[name] = row[f"{model_name}_{name}"]
@@ -753,6 +755,16 @@ class SQLStorageEngine(AbstractStorageEngine):
                     )
                     others.append(obj)
                     attrs[name] = obj
+                elif issubclass(f_type, enum.Enum):
+                    try:
+                        value = f_type(value)
+                    except ValueError:
+                        invalid_key = getattr(
+                            model.__config__, "invalid_enum_key", "INVALID"
+                        )
+                        value = getattr(f_type, invalid_key)
+                    finally:
+                        attrs[name] = value
                 elif o_type is not Sequence[f_type]:
                     attrs[name] = row[f"{model_name}_{name}"]
 

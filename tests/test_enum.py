@@ -101,3 +101,21 @@ def test_create_flag(db):
 
         user = User.repository.create(name="me", access=member)
         assert user is not None
+
+
+def test_create_int_enum_and_retrieve_it(db):
+    """Create a NTile object."""
+    db.bind({NTile})
+
+    tiles = []
+    for member in NColor:
+        if member is NColor.INVALID:
+            continue
+
+        tiles.append(NTile.repository.create(x=0, y=0, color=member))
+
+    # Retrieve them.
+    db.cache.clear()
+    for tile in tiles:
+        new_tile = NTile.repository.get(id=tile.id)
+        assert new_tile.color is tile.color
