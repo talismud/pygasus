@@ -30,6 +30,7 @@
 """SQLAlchemy storage engine for Pygasus."""
 
 from datetime import date, datetime
+import enum
 import operator
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Type, Union
@@ -227,6 +228,19 @@ class SQLStorageEngine(AbstractStorageEngine):
                 )
                 continue
 
+            # Handle enumerations here.
+            if issubclass(f_type, enum.Enum):
+                e_type = type(list(f_type)[0].value)
+                if not all(
+                    isinstance(member.value, e_type)
+                    for member in f_type
+                ):
+                    raise ValueError(
+                        f"the enumeration {f_type} contains members 3"
+                        "of different types"
+                    )
+                f_type = e_type
+
             sql_type = SQL_TYPES.get(f_type)
             if sql_type is None:
                 raise ValueError(f"unknown type: {name} ({f_type})")
@@ -324,6 +338,8 @@ class SQLStorageEngine(AbstractStorageEngine):
 
                 exclude.add(name)
                 continue
+            elif issubclass(f_type, enum.Enum):
+                sql[name] = attrs[name].value
 
             pk = info.extra.get("primary_key", False)
             if pk and issubclass(f_type, int):
