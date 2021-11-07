@@ -36,11 +36,40 @@ class SQLQueryBuilder(AbstractQueryBuilder):
 
     """Query builder for SQLAlchemy."""
 
-    def eq(self, field, other):
-        """Compare field to other."""
+    def _get_table(self, field):
+        """Return the table for this model."""
         model = field.__model__
         model_name = getattr(
             model.__config__, "model_name", model.__name__.lower()
         )
-        table = self.storage_engine.tables[model_name]
+        return self.storage_engine.tables[model_name]
+
+    def eq(self, field, other):
+        """Compare field to other."""
+        table = self._get_table(field)
         return getattr(table.c, field.name) == other
+
+    def ne(self, field, other):
+        """Compare field to other."""
+        table = self._get_table(field)
+        return getattr(table.c, field.name) != other
+
+    def lt(self, field, other):
+        """Compare field to other."""
+        table = self._get_table(field)
+        return getattr(table.c, field.name) < other
+
+    def le(self, field, other):
+        """Compare field to other."""
+        table = self._get_table(field)
+        return getattr(table.c, field.name) <= other
+
+    def gt(self, field, other):
+        """Compare field to other."""
+        table = self._get_table(field)
+        return getattr(table.c, field.name) > other
+
+    def ge(self, field, other):
+        """Compare field to other."""
+        table = self._get_table(field)
+        return getattr(table.c, field.name) >= other

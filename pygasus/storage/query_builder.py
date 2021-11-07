@@ -66,3 +66,23 @@ class AbstractQueryBuilder(metaclass=ABCMeta):
     @abstractmethod
     def eq(self, field, other):
         """Compare field to other."""
+
+    @abstractmethod
+    def ne(self, field, other):
+        """Compare field to other."""
+
+    @abstractmethod
+    def lt(self, field, other):
+        """Compare field to other."""
+
+    @abstractmethod
+    def le(self, field, other):
+        """Compare field to other."""
+
+    @abstractmethod
+    def gt(self, field, other):
+        """Compare field to other."""
+
+    @abstractmethod
+    def ge(self, field, other):
+        """Compare field to other."""

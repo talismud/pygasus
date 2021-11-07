@@ -80,6 +80,126 @@ def test_create_and_select_equal(db):
     assert user3 in result
 
 
+def test_create_and_select_different(db):
+    """Create users and search in the storage through queries."""
+    db.bind({User})
+    user1 = User.repository.create(name="Vincent", age=33, height=5.7)
+    user2 = User.repository.create(
+        name="Muriel",
+        age=33,
+        height=5.6,
+        email="muriel@test.com",
+    )
+    user3 = User.repository.create(
+        name="Vincent",
+        age=21,
+        height=5.7,
+        email="vincent@test.com",
+    )
+
+    # Select users.
+    result = User.repository.select(User.name != "Vincent")
+    assert user1 not in result
+    assert user2 in result
+    assert user3 not in result
+
+
+def test_create_and_select_lower_than(db):
+    """Create users and search in the storage through queries."""
+    db.bind({User})
+    user1 = User.repository.create(name="Vincent", age=33, height=5.7)
+    user2 = User.repository.create(
+        name="Muriel",
+        age=32,
+        height=5.6,
+        email="muriel@test.com",
+    )
+    user3 = User.repository.create(
+        name="Vincent",
+        age=21,
+        height=5.7,
+        email="vincent@test.com",
+    )
+
+    # Select users.
+    result = User.repository.select(User.age < 33)
+    assert user1 not in result
+    assert user2 in result
+    assert user3 in result
+
+
+def test_create_and_select_lower_or_equal(db):
+    """Create users and search in the storage through queries."""
+    db.bind({User})
+    user1 = User.repository.create(name="Vincent", age=33, height=5.7)
+    user2 = User.repository.create(
+        name="Muriel",
+        age=32,
+        height=5.6,
+        email="muriel@test.com",
+    )
+    user3 = User.repository.create(
+        name="Vincent",
+        age=21,
+        height=5.7,
+        email="vincent@test.com",
+    )
+
+    # Select users.
+    result = User.repository.select(User.age <= 32)
+    assert user1 not in result
+    assert user2 in result
+    assert user3 in result
+
+
+def test_create_and_select_greater_than(db):
+    """Create users and search in the storage through queries."""
+    db.bind({User})
+    user1 = User.repository.create(name="Vincent", age=33, height=5.7)
+    user2 = User.repository.create(
+        name="Muriel",
+        age=32,
+        height=5.6,
+        email="muriel@test.com",
+    )
+    user3 = User.repository.create(
+        name="Vincent",
+        age=21,
+        height=5.7,
+        email="vincent@test.com",
+    )
+
+    # Select users.
+    result = User.repository.select(User.age > 25)
+    assert user1 in result
+    assert user2 in result
+    assert user3 not in result
+
+
+def test_create_and_select_greater_or_equal(db):
+    """Create users and search in the storage through queries."""
+    db.bind({User})
+    user1 = User.repository.create(name="Vincent", age=33, height=5.7)
+    user2 = User.repository.create(
+        name="Muriel",
+        age=32,
+        height=5.6,
+        email="muriel@test.com",
+    )
+    user3 = User.repository.create(
+        name="Vincent",
+        age=21,
+        height=5.7,
+        email="vincent@test.com",
+    )
+
+    # Select users.
+    result = User.repository.select(User.age >= 32)
+    assert user1 in result
+    assert user2 in result
+    assert user3 not in result
+
+
 def test_update(db):
     """Test to create and update a user."""
     db.bind({User})

@@ -50,3 +50,18 @@ class PygasusField:
 
     def __eq__(self, other):
         return self.__storage__.query_builder.eq(self, other)
+
+    def __ne__(self, other):
+        return self.__storage__.query_builder.ne(self, other)
+
+    def __lt__(self, other):
+        return self.__storage__.query_builder.lt(self, other)
+
+    def __le__(self, other):
+        return self.__storage__.query_builder.le(self, other)
+
+    def __gt__(self, other):
+        return self.__storage__.query_builder.gt(self, other)
+
+    def __ge__(self, other):
+        return self.__storage__.query_builder.ge(self, other)
