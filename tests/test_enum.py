@@ -38,6 +38,15 @@ class Access(Flag):
     ALL = READ | WRITE | EXECUTE
 
 
+class FoodType(Enum):
+
+    """Enumeration for food types."""
+
+    MEAT = 1
+    VEGETABLE = 2
+    FRUIT = 3
+
+
 class NTile(Model):
 
     """Tile containing a number color."""
@@ -45,7 +54,7 @@ class NTile(Model):
     id: int = Field(primary_key=True)
     x: int
     y: int
-    color: NColor
+    color: NColor = Field(invalid_member=NColor.INVALID)
 
 
 class STile(Model):
@@ -55,7 +64,7 @@ class STile(Model):
     id: int = Field(primary_key=True)
     x: int
     y: int
-    color: SColor
+    color: SColor = Field(invalid_member=SColor.INVALID)
 
 
 class User(Model):
@@ -64,7 +73,13 @@ class User(Model):
 
     id: int = Field(primary_key=True)
     name: str
-    access: Access
+    access: Access = Field(invalid_member=Access.INVALID)
+
+
+class Restaurant(Model):
+
+    id: int = Field(primary_key=True)
+    food_type: FoodType  # invalid, no invalid fallback.
 
 
 def test_create_int_enum(db):
@@ -101,6 +116,12 @@ def test_create_flag(db):
 
         user = User.repository.create(name="me", access=member)
         assert user is not None
+
+
+def test_create_restaurant(db):
+    """Create a User object."""
+    with pytest.raises(ValueError):
+        db.bind({Restaurant})
 
 
 def test_create_int_enum_and_retrieve_it(db):

@@ -186,6 +186,7 @@ class SQLStorageEngine(AbstractStorageEngine):
             model.__pygasus__[name].__storage__ = self
             o_type = field.outer_type_
             f_type = field.type_
+            info = field.field_info
             origin = get_origin(o_type)
             if origin is list or o_type is Sequence[f_type]:
                 # Analyze the back field.  If it's a list too, an
@@ -238,13 +239,16 @@ class SQLStorageEngine(AbstractStorageEngine):
                         f"the enumeration {f_type} contains members 3"
                         "of different types"
                     )
-                invalid_key = getattr(
-                    model.__config__, "invalid_enum_key", "INVALID"
-                )
-                if not hasattr(f_type, invalid_key):
+                invalid = info.extra.get("invalid_member", ...)
+                if invalid is ...:
                     raise ValueError(
-                        f"{f_type} doesn't have an invalid key (key "
-                        f"{invalid_key!r})"
+                        f"field {model.__name__}.{name}: no invalid member "
+                        f"is provided for the enumeration {f_type}.  The "
+                        "invalid member is required when using enumerations "
+                        "to let Pygasus know what to do if the stored "
+                        "enumeration member doesn't match the enumeration "
+                        "class.  Provide one with "
+                        "Field(..., invalid_member=MyEnum.INVALID)"
                     )
                 f_type = e_type
 
@@ -252,7 +256,7 @@ class SQLStorageEngine(AbstractStorageEngine):
             if sql_type is None:
                 raise ValueError(f"unknown type: {name} ({f_type})")
             else:
-                extra = field.field_info.extra
+                extra = info.extra
                 primary_key = extra.get("primary_key", False)
                 unique = extra.get("unique", False)
                 index = extra.get("index", False)
