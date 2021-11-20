@@ -86,3 +86,11 @@ class AbstractQueryBuilder(metaclass=ABCMeta):
     @abstractmethod
     def ge(self, field, other):
         """Compare field to other."""
+
+    @abstractmethod
+    def is_in(self, field, collection):
+        """Filter fields with a value in a collection."""
+
+    @abstractmethod
+    def is_not_in(self, field, collection):
+        """Filter fields with a value not in a collection."""

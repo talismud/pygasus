@@ -73,3 +73,13 @@ class SQLQueryBuilder(AbstractQueryBuilder):
         """Compare field to other."""
         table = self._get_table(field)
         return getattr(table.c, field.name) >= other
+
+    def is_in(self, field, collection):
+        """Filter fields with a value in a collection."""
+        table = self._get_table(field)
+        return getattr(table.c, field.name).in_(collection)
+
+    def is_not_in(self, field, collection):
+        """Filter fields with a value not in a collection."""
+        table = self._get_table(field)
+        return getattr(table.c, field.name).not_in(collection)

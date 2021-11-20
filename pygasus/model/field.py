@@ -65,3 +65,11 @@ class PygasusField:
 
     def __ge__(self, other):
         return self.__storage__.query_builder.ge(self, other)
+
+    def is_in(self, collection):
+        """Return models with the field in this collection."""
+        return self.__storage__.query_builder.is_in(self, collection)
+
+    def is_not_in(self, collection):
+        """Return models with the field not in this collection."""
+        return self.__storage__.query_builder.is_not_in(self, collection)
