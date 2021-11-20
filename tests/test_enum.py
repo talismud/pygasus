@@ -64,7 +64,7 @@ class STile(Model):
     id: int = Field(primary_key=True)
     x: int
     y: int
-    color: SColor = Field(invalid_member=SColor.INVALID)
+    color: SColor = Field(invalid_member="INVALID")
 
 
 class User(Model):
@@ -73,7 +73,7 @@ class User(Model):
 
     id: int = Field(primary_key=True)
     name: str
-    access: Access = Field(invalid_member=Access.INVALID)
+    access: Access
 
 
 class Restaurant(Model):

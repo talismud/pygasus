@@ -241,7 +241,12 @@ class SQLStorageEngine(AbstractStorageEngine):
                         f"the enumeration {f_type} contains members 3"
                         "of different types"
                     )
-                invalid = info.extra.get("invalid_member", ...)
+                invalid_member = info.extra.get("invalid_member", "INVALID")
+                if isinstance(invalid_member, str):
+                    invalid = getattr(f_type, invalid_member, ...)
+                else:
+                    invalid = invalid_member
+
                 if invalid is ...:
                     raise ValueError(
                         f"field {model.__name__}.{name}: no invalid member "
