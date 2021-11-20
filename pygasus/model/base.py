@@ -162,6 +162,11 @@ class Model(BaseModel, metaclass=MetaModel):
         """Force an UPDATE operation on the storage."""
         old_value = getattr(self, key, ...)
         exists = getattr(self, "_exists", False)
+        cls_attr = getattr(type(self), key, None)
+        if isinstance(cls_attr, property):
+            object.__setattr__(self, key, value)
+            return
+
         super().__setattr__(key, value)
         if exists and not key.startswith("_"):
             # Inform the repositories of a change.
