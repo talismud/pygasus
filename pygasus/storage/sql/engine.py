@@ -34,6 +34,7 @@ import enum
 import operator
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Type, Union
+from uuid import UUID
 
 
 try:
@@ -59,7 +60,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.sql import select
 
-from pygasus.model import Model, Sequence
+from pygasus.model import Field, Model, Sequence
 from pygasus.storage.abc import AbstractStorageEngine
 from pygasus.storage.sql.query_builder import SQLQueryBuilder
 
@@ -70,6 +71,7 @@ SQL_TYPES = {
     float: Float,
     int: Integer,
     str: Text,
+    UUID: Text,
     EmailStr: Text,
 }
 
@@ -349,8 +351,16 @@ class SQLStorageEngine(AbstractStorageEngine):
 
                 exclude.add(name)
                 continue
-            elif issubclass(f_type, enum.Enum):
+
+            if issubclass(f_type, enum.Enum):
                 sql[name] = attrs[name].value
+
+            # Convert the field, if necessary.
+            method = getattr(
+                self, f"{o_type.__name__.lower()}_to_storage", None
+            )
+            if method:
+                sql[name] = method(model, field, attrs[name])
 
             pk = info.extra.get("primary_key", False)
             if pk and issubclass(f_type, int):
@@ -536,6 +546,12 @@ class SQLStorageEngine(AbstractStorageEngine):
             query = query.join(table)
         where = []
         for column, value in kwargs.items():
+            method = getattr(
+                self, f"{type(value).__name__.lower()}_to_storage", None
+            )
+            if method:
+                value = method(model, model.__fields__[column], value)
+
             where.append(getattr(table.c, column) == value)
         query = query.where(*where)
 
@@ -629,6 +645,13 @@ class SQLStorageEngine(AbstractStorageEngine):
         if isinstance(new_value, enum.Enum):
             new_value = new_value.value
 
+        # Handle other field types.
+        method = getattr(
+            self, f"{type(new_value).__name__.lower()}_to_storage", None
+        )
+        if method:
+            new_value = method(model, model.__fields__[key], new_value)
+
         # Send the query.
         sql_columns = {key: new_value}
         update = (
@@ -657,6 +680,12 @@ class SQLStorageEngine(AbstractStorageEngine):
             pk = info.extra.get("primary_key", False)
             if pk:
                 value = getattr(instance, name)
+                # Convert other field types.
+                method = getattr(
+                    self, f"{type(value).__name__.lower()}_to_storage", None
+                )
+                if method:
+                    value = method(model, field, value)
                 sql_primary_keys.append(getattr(sql_table.c, name) == value)
                 pks.append(value)
 
@@ -749,7 +778,18 @@ class SQLStorageEngine(AbstractStorageEngine):
                 if pk:
                     if value is not ...:
                         pks.append(value)
-                    attrs[name] = row[f"{model_name}_{name}"]
+
+                    # Convert the field, if necessary.
+                    value = row[f"{model_name}_{name}"]
+                    method = getattr(
+                        self,
+                        f"{type(value).__name__.lower()}_from_storage",
+                        None,
+                    )
+                    if method:
+                        value = method(model, field, value)
+
+                    attrs[name] = value
                 elif (
                     isinstance(f_type, type)
                     and issubclass(f_type, Model)
@@ -774,7 +814,16 @@ class SQLStorageEngine(AbstractStorageEngine):
                     finally:
                         attrs[name] = value
                 elif o_type is not Sequence[f_type]:
-                    attrs[name] = row[f"{model_name}_{name}"]
+                    value = row[f"{model_name}_{name}"]
+                    method = getattr(
+                        self,
+                        f"{type(value).__name__.lower()}_from_storage",
+                        None,
+                    )
+                    if method:
+                        value = method(model, field, value)
+
+                    attrs[name] = value
 
             obj = self.cache.get((model,) + tuple(pks))
             if obj is not None:
@@ -801,14 +850,13 @@ class SQLStorageEngine(AbstractStorageEngine):
 
         return objs[0] if first else objs
 
-    def equal(self, field, other):
-        """Compare field to other."""
-        model = field.__model__
-        model_name = getattr(
-            model.__config__, "model_name", model.__name__.lower()
-        )
-        table = self.tables[model_name]
-        return getattr(table.c, field.name) == other
+    # Type conversions.
+    def uuid_from_storage(
+        self, model: Model, field: Field, value: str
+    ) -> UUID:
+        """Convert a UUID hex to a UUID object."""
+        return UUID(value)
 
-    def eq(self, field, other):
-        """Compare field to other."""
+    def uuid_to_storage(self, model: Model, field: Field, value: UUID) -> str:
+        """Convert a UUID to a str representation."""
+        return value.hex
