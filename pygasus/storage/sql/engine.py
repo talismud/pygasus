@@ -44,6 +44,7 @@ except ImportError:
 
 from pydantic import EmailStr
 from sqlalchemy import (
+    Boolean,
     Column,
     Date,
     DateTime,
@@ -65,6 +66,7 @@ from pygasus.storage.abc import AbstractStorageEngine
 from pygasus.storage.sql.query_builder import SQLQueryBuilder
 
 SQL_TYPES = {
+    bool: Boolean,
     bytes: LargeBinary,
     date: Date,
     datetime: DateTime,
