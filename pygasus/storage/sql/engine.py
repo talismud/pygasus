@@ -192,6 +192,12 @@ class SQLStorageEngine(AbstractStorageEngine):
             f_type = field.type_
             info = field.field_info
             origin = get_origin(o_type)
+
+            # If it's a custom field, use that instead.
+            custom = info.extra.get("custom_class")
+            if custom:
+                f_type = self.add_custom_field_to_model(custom, model, field)
+
             if origin is list or o_type is Sequence[f_type]:
                 # Analyze the back field.  If it's a list too, an
                 # intermediate table should be created.
@@ -203,7 +209,7 @@ class SQLStorageEngine(AbstractStorageEngine):
                     right_field=self.get_back_field(model, field, f_type),
                 )
                 continue
-            elif issubclass(f_type, Model):
+            elif isinstance(f_type, type) and issubclass(f_type, Model):
                 # Create foreign key fields.
                 to_name = getattr(
                     f_type.__config__, "model_name", f_type.__name__.lower()
@@ -234,7 +240,7 @@ class SQLStorageEngine(AbstractStorageEngine):
                 continue
 
             # Handle enumerations here.
-            if issubclass(f_type, enum.Enum):
+            if isinstance(f_type, type) and issubclass(f_type, enum.Enum):
                 e_type = type(list(f_type)[0].value)
                 if not all(
                     isinstance(member.value, e_type) for member in f_type
@@ -344,6 +350,11 @@ class SQLStorageEngine(AbstractStorageEngine):
                 exclude.add(name)
                 linked.add(name)
                 continue
+
+            custom = self.custom_fields.get((model, field.name))
+            if custom:
+                value = attrs[name]
+                sql[name] = custom.to_storage(value)
 
             if issubclass(f_type, Model):
                 right = attrs[name]
@@ -625,8 +636,7 @@ class SQLStorageEngine(AbstractStorageEngine):
         return objs
 
     def update(self, model, instance, key, old_value, new_value):
-        """
-        Update an instance attribute.
+        """Update an instance attribute.
 
         Args:
             model (subclass of Model): the model class.
@@ -648,6 +658,7 @@ class SQLStorageEngine(AbstractStorageEngine):
                 value = getattr(instance, name)
                 sql_primary_keys.append(getattr(sql_table.c, name) == value)
 
+        field = model.__fields__[key]
         # Handles enum field.
         if isinstance(new_value, enum.Enum):
             new_value = new_value.value
@@ -657,7 +668,12 @@ class SQLStorageEngine(AbstractStorageEngine):
             self, f"{type(new_value).__name__.lower()}_to_storage", None
         )
         if method:
-            new_value = method(model, model.__fields__[key], new_value)
+            new_value = method(model, field, new_value)
+
+        # Handle custom fields.
+        custom = self.custom_fields.get((model, field.name))
+        if custom:
+            new_value = custom.to_storage(new_value)
 
         # Send the query.
         sql_columns = {key: new_value}
@@ -766,6 +782,7 @@ class SQLStorageEngine(AbstractStorageEngine):
         done = done or ()
         objs = []
         done = list(done)
+        customs = []
         for model in models:
             done.append(model)
             model_name = getattr(
@@ -782,6 +799,7 @@ class SQLStorageEngine(AbstractStorageEngine):
                 f_type = field.type_
                 pk = info.extra.get("primary_key", False)
                 value = row.get(f"{model_name}_{name}", ...)
+                custom = self.custom_fields.get((model, field.name))
                 if pk:
                     if value is not ...:
                         pks.append(value)
@@ -796,6 +814,10 @@ class SQLStorageEngine(AbstractStorageEngine):
                     if method:
                         value = method(model, field, value)
 
+                    attrs[name] = value
+                elif custom:
+                    value = custom.to_field(value)
+                    customs.append((value, name))
                     attrs[name] = value
                 elif (
                     isinstance(f_type, type)
@@ -837,6 +859,9 @@ class SQLStorageEngine(AbstractStorageEngine):
                 objs.append(obj)
             else:
                 obj = model(**attrs)
+                for field, name in customs:
+                    field.parent = obj
+                    field.field = name
                 self.cache[(model,) + tuple(pks)] = obj
                 objs.append(obj)
                 for name, field in model.__fields__.items():

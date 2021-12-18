@@ -32,7 +32,7 @@
 from abc import ABCMeta, abstractmethod
 from typing import Dict, List, Optional, Set, Type
 
-from pygasus.model import Model, Sequence
+from pygasus.model import CustomField, Field, Model, Sequence
 from pygasus.storage.query_builder import AbstractQueryBuilder
 
 
@@ -51,7 +51,40 @@ class AbstractStorageEngine(metaclass=ABCMeta):
 
     def __init__(self):
         self.models = {}
+        self.custom_fields = {}
         self.cache = {}
+
+    def add_custom_field(self, field: Type[CustomField], **kwargs):
+        """Add support for a custom field.
+
+        Args:
+            field (CustomField): the custom field class.
+
+        Additional keyword arguments can be sent and will be stored
+        as options for the custom field.
+
+        """
+
+    def add_custom_field_to_model(
+        self,
+        custom_field: Type[CustomField],
+        model: Model,
+        field: Field,
+    ) -> CustomField:
+        """Add a custom field to a model.
+
+        Args:
+            custom_field (CustomField): the custom field to add.
+            model (Model): the model to add this field to.
+            field (Field): the generic field.
+
+        Returns:
+            custom_field (CustomField): the instanciated custom field.
+
+        """
+        custom_field = custom_field(self, model, field)
+        self.custom_fields[(model, field.name)] = custom_field
+        return custom_field.add()
 
     # Abstract methods
     @abstractmethod

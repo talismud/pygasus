@@ -31,3 +31,4 @@
 
 from pygasus.model.base import Field, Model, MODELS  # noqa: F401
 from pygasus.model.collections import Sequence  # noqa: F401
+from pygasus.model.custom_field import CustomField  # noqa: F401

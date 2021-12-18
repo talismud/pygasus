@@ -133,6 +133,7 @@ class Model(BaseModel, metaclass=MetaModel):
         repository_path = None
         unique = ()
         copy_on_model_validation = False
+        arbitrary_types_allowed = True
 
     def __init__(self, **kwargs):
         self._exists = False
