@@ -73,3 +73,11 @@ class PygasusField:
     def is_not_in(self, collection):
         """Return models with the field not in this collection."""
         return self.__storage__.query_builder.is_not_in(self, collection)
+
+    def has(self, value):
+        """Return models with the field having this value (flag)."""
+        return self.__storage__.query_builder.has(self, value)
+
+    def has_not(self, value):
+        """Return models without the field having this value (flag)."""
+        return self.__storage__.query_builder.has_not(self, value)

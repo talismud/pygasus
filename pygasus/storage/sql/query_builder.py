@@ -83,3 +83,13 @@ class SQLQueryBuilder(AbstractQueryBuilder):
         """Filter fields with a value not in a collection."""
         table = self._get_table(field)
         return getattr(table.c, field.name).not_in(collection)
+
+    def has(self, field, value):
+        """Return models with the field having this value (flag)."""
+        table = self._get_table(field)
+        return getattr(table.c, field.name).op("&")(value.value) == value.value
+
+    def has_not(self, field, value):
+        """Return models without the field having this value (flag)."""
+        table = self._get_table(field)
+        return getattr(table.c, field.name).op("&")(value.value) != value.value

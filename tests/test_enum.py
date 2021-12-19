@@ -178,6 +178,45 @@ def test_create_flag_and_retrieve_it(db):
         assert new_user.access is user.access
 
 
+
+def test_create_flag_and_retrieve_if_in(db):
+    """Create a User object."""
+    db.bind({User})
+
+    users = []
+    for member in Access:
+        if member is Access.INVALID:
+            continue
+
+        users.append(User.repository.create(name="me", access=member))
+
+    # Retrieve the ones with the READ flag.
+    db.cache.clear()
+    can_read = User.repository.select(User.access.has(Access.READ))
+    assert len(can_read) == 2
+    for user in can_read:
+        assert Access.READ in user.access
+
+
+def test_create_flag_and_retrieve_if_not_in(db):
+    """Create a User object."""
+    db.bind({User})
+
+    users = []
+    for member in Access:
+        if member is Access.INVALID:
+            continue
+
+        users.append(User.repository.create(name="me", access=member))
+
+    # Retrieve the ones with the READ flag.
+    db.cache.clear()
+    cant_read = User.repository.select(User.access.has_not(Access.READ))
+    assert len(cant_read) == 2
+    for user in cant_read:
+        assert Access.READ not in user.access
+
+
 def test_create_int_enum_update_and_retrieve_it(db):
     """Create a NTile object."""
     db.bind({NTile})

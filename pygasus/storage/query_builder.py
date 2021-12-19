@@ -94,3 +94,11 @@ class AbstractQueryBuilder(metaclass=ABCMeta):
     @abstractmethod
     def is_not_in(self, field, collection):
         """Filter fields with a value not in a collection."""
+
+    @abstractmethod
+    def has(self, field, value):
+        """Return models with the field having this value (flag)."""
+
+    @abstractmethod
+    def has_not(self, field, collection):
+        """Return models without the field having this value (flag)."""
