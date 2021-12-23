@@ -656,6 +656,20 @@ class SQLStorageEngine(AbstractStorageEngine):
             pk = info.extra.get("primary_key", False)
             if pk:
                 value = getattr(instance, name)
+                if isinstance(value, enum.Enum):
+                    value = value.value
+
+                # Handle other field types.
+                method = getattr(
+                    self, f"{type(value).__name__.lower()}_to_storage", None
+                )
+                if method:
+                    value = method(model, field, value)
+
+                # Handle custom fields.
+                custom = self.custom_fields.get((model, field.name))
+                if custom:
+                    value = custom.to_storage(value)
                 sql_primary_keys.append(getattr(sql_table.c, name) == value)
 
         field = model.__fields__[key]

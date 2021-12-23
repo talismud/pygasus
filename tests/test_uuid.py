@@ -17,7 +17,7 @@ class Session(Model):
 
     """A session with a primary key as UUID."""
 
-    id: UUID
+    id: UUID = Field(primary_key=True)
     name: str
 
 
