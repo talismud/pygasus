@@ -125,3 +125,15 @@ class Repository:
 
         """
         self.storage_engine.delete(self.model, instance)
+
+    def bulk_delete(self, query) -> int:
+        """Delete model instances based on a query.
+
+        Args:
+            query: the query to filter models.
+
+        Examle:
+            account = repository.bulk_delete(Account.username == "me")
+
+        """
+        return self.storage_engine.bulk_delete(self.model, query)

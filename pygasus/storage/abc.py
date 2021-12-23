@@ -220,6 +220,19 @@ class AbstractStorageEngine(metaclass=ABCMeta):
 
         """
 
+    @abstractmethod
+    def bulk_delete(self, model: Type[Model], query) -> int:
+        """Select one or more models with the specified query and delete them.
+
+        Args:
+            model (subclass of Model): the model object.
+            query: the query object by which to filter.
+
+        Returns:
+            number (int): the number of deleted rows.
+
+        """
+
     # Helper methods.
     def get_back_field(self, model, field, left):
         """Return, if found, the bac field of the relationship.

@@ -719,6 +719,49 @@ class SQLStorageEngine(AbstractStorageEngine):
         delete = sql_table.delete().where(*sql_primary_keys)
         self.connection.execute(delete)
 
+    def bulk_delete(self, model: Type[Model], query) -> int:
+        """Select one or more models with the specified query and delete them.
+
+        Args:
+            model (subclass of Model): the model object.
+            query: the query object by which to filter.
+
+        Returns:
+            number (int): the number of deleted rows.
+
+        """
+        model_name = getattr(
+            model.__config__, "model_name", model.__name__.lower()
+        )
+        table = self.tables[model_name]
+        pks = []
+        for name, field in model.__fields__.items():
+            info = field.field_info
+            pk = info.extra.get("primary_key", False)
+            if pk:
+                pks.append(name)
+
+        sql = table.delete().where(query)
+
+        # Perform a select (this will be an additional query, but
+        # we need to safely invalidate the cache).
+        for obj in self.select(model, query):
+            specific_pks = []
+            for name in pks:
+                value = getattr(obj, name)
+                # Convert other field types.
+                method = getattr(
+                    self, f"{type(value).__name__.lower()}_to_storage", None
+                )
+                if method:
+                    value = method(model, field, value)
+                specific_pks.append(value)
+            self.cache.pop((model,) + tuple(specific_pks), None)
+
+        # Send the query.
+        ret = self.connection.execute(sql)
+        return ret.rowcount
+
     def _get_columns_for(self, model: Type[Model]) -> Tuple[Column]:
         """Return the relevant columns for the specified model.
 
