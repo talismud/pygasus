@@ -164,7 +164,7 @@ class Model(BaseModel, metaclass=MetaModel):
         old_value = getattr(self, key, ...)
         exists = getattr(self, "_exists", False)
         cls_attr = getattr(type(self), key, None)
-        if isinstance(cls_attr, property):
+        if isinstance(cls_attr, (property, LazyPropertyDescriptor)):
             object.__setattr__(self, key, value)
             return
 
