@@ -12,7 +12,7 @@ test_one() {
   build_image_if_necessary "$1"
   docker run -v "/$(pwd):/usr/src/app" -it --rm "pygasus-$1" bash -c '
     python -VV | head -n 1
-    pytest -sq --no-header tests'
+    pytest -sq --no-header --tb=native tests'
 }
 
 # Run the tests in one or more image.

@@ -43,6 +43,7 @@ except ImportError:
     from typing_compat import get_origin
 
 from pydantic import EmailStr
+from pydantic.fields import SHAPE_LIST
 from sqlalchemy import (
     Boolean,
     Column,
@@ -61,6 +62,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.sql import select
 
+from pygasus.field.helpers import update_pygasus_field
 from pygasus.model import Field, Model, Sequence
 from pygasus.storage.abc import AbstractStorageEngine
 from pygasus.storage.sql.query_builder import SQLQueryBuilder
@@ -186,8 +188,9 @@ class SQLStorageEngine(AbstractStorageEngine):
         # Browse model fields, creating columsn, indexes and constraints.
         indexes = []
         for name, field in model.__fields__.items():
-            model.__pygasus__[name].__model__ = model
-            model.__pygasus__[name].__storage__ = self
+            model.__pygasus__[name].bind(model, self)
+            update_pygasus_field(model.__pygasus__[name])
+            pygasus = model.__pygasus__[name]
             o_type = field.outer_type_
             f_type = field.type_
             info = field.field_info
@@ -210,6 +213,15 @@ class SQLStorageEngine(AbstractStorageEngine):
                 )
                 continue
             elif isinstance(f_type, type) and issubclass(f_type, Model):
+                # If the field is optional (and back isn't) do not add.
+                back = self.get_back_field(model, field, f_type)
+
+                # Choose the owner field.
+                if not pygasus.required and back.required:
+                    info.extra["owner"] = False
+                    back.field_info.extra["owner"] = True
+                    continue
+
                 # Create foreign key fields.
                 to_name = getattr(
                     f_type.__config__, "model_name", f_type.__name__.lower()
@@ -226,17 +238,19 @@ class SQLStorageEngine(AbstractStorageEngine):
                             f"{name}_{pname}",
                             None,
                             ForeignKey(f"{to_name}.{pname}"),
+                            nullable=not field.required,
                         )
                     )
 
                 # Add sort options.
-                columns.append(
-                    Column(
-                        f"{name}__index",
-                        Integer,
-                        nullable=False,
+                if back.shape == SHAPE_LIST:
+                    columns.append(
+                        Column(
+                            f"{name}__index",
+                            Integer,
+                            nullable=False,
+                        )
                     )
-                )
                 continue
 
             # Handle enumerations here.
@@ -346,6 +360,7 @@ class SQLStorageEngine(AbstractStorageEngine):
             info = field.field_info
             o_type = field.outer_type_
             f_type = field.type_
+            pygasus = getattr(model, field.name)
             if o_type is Sequence[f_type]:
                 exclude.add(name)
                 linked.add(name)
@@ -357,7 +372,11 @@ class SQLStorageEngine(AbstractStorageEngine):
                 sql[name] = custom.to_storage(value)
 
             if issubclass(f_type, Model):
-                right = attrs[name]
+                right = attrs.get(name, field.get_default())
+                if not isinstance(right, Model):  # Skip here (non valid).
+                    exclude.add(name)
+                    continue
+
                 primary_keys = {
                     name: field
                     for name, field in f_type.__fields__.items()
@@ -390,6 +409,13 @@ class SQLStorageEngine(AbstractStorageEngine):
 
         # Validate the model object.
         obj = model(**attrs)
+        for name, attr in attrs.items():
+            pygasus = getattr(model, name)
+            pygasus.validate_update(obj, None, attr)
+
+        for name, attr in attrs.items():
+            pygasus = getattr(model, name)
+            pygasus.perform_update(obj, None, attr)
 
         # Create a row.
         table = self.tables[model_name]
@@ -561,7 +587,7 @@ class SQLStorageEngine(AbstractStorageEngine):
         columns, tables = self._get_columns_for(model)
         query = select(*columns)
         for join in tables:
-            query = query.join(table)
+            query = query.join(join)
         where = []
         for column, value in kwargs.items():
             method = getattr(
@@ -640,7 +666,7 @@ class SQLStorageEngine(AbstractStorageEngine):
 
         Args:
             model (subclass of Model): the model class.
-            instance (Model: the model object.
+            instance (Model): the model object.
             key (str): the name of the attribute to modify.
             old_value (Any): the value before the modification.
             new_value (Any): the value after the modification.
@@ -689,8 +715,37 @@ class SQLStorageEngine(AbstractStorageEngine):
         if custom:
             new_value = custom.to_storage(new_value)
 
-        # Send the query.
         sql_columns = {key: new_value}
+        f_type = field.type_
+        pygasus = model.__pygasus__[field.name]
+        if issubclass(f_type, Model):
+            if not field.field_info.extra.get("owner", True):
+                old_value = getattr(new_value, pygasus.__back__.name, None)
+                return self.update(
+                    type(new_value),
+                    new_value,
+                    pygasus.__back__.name,
+                    old_value,
+                    instance,
+                )
+
+            sql_columns = {}
+            linked_keys = {
+                linked_name: linked_field
+                for linked_name, linked_field in f_type.__fields__.items()
+                if linked_field.field_info.extra.get("primary_key")
+            }
+
+            for pname, pfield in linked_keys.items():
+                value = new_value and getattr(new_value, pname) or None
+                sql_columns[f"{field.name}_{pname}"] = value
+
+        # Check that this update can be performed.
+        pygasus.validate_update(instance, old_value, new_value)
+
+        pygasus.perform_update(instance, old_value, new_value)
+
+        # Send the query.
         update = (
             sql_table.update().where(*sql_primary_keys).values(**sql_columns)
         )
@@ -776,7 +831,9 @@ class SQLStorageEngine(AbstractStorageEngine):
         ret = self.connection.execute(sql)
         return ret.rowcount
 
-    def _get_columns_for(self, model: Type[Model]) -> Tuple[Column]:
+    def _get_columns_for(
+        self, model: Type[Model], recursion=True
+    ) -> Tuple[Column]:
         """Return the relevant columns for the specified model.
 
         Args:
@@ -797,19 +854,22 @@ class SQLStorageEngine(AbstractStorageEngine):
             f_type = field.type_
             if issubclass(f_type, Model) and o_type is not Sequence[f_type]:
                 # Join up.
-                tables.append(
-                    self.tables[
-                        getattr(
-                            f_type.__config__,
-                            "model_name",
-                            f_type.__name__.lower(),
-                        )
-                    ]
-                )
+                if recursion:
+                    tables.append(
+                        self.tables[
+                            getattr(
+                                f_type.__config__,
+                                "model_name",
+                                f_type.__name__.lower(),
+                            )
+                        ]
+                    )
 
-                other_columns, other_tables = self._get_columns_for(f_type)
-                columns.extend(other_columns)
-                tables.extend(other_tables)
+                    other_columns, other_tables = self._get_columns_for(
+                        f_type, recursion=False
+                    )
+                    columns.extend(other_columns)
+                    tables.extend(other_tables)
             elif o_type is not Sequence[f_type]:
                 columns.append(
                     getattr(table.c, name).label(f"{model_name}_{name}")
@@ -889,6 +949,10 @@ class SQLStorageEngine(AbstractStorageEngine):
                     )
                     others.append(obj)
                     attrs[name] = obj
+
+                    # Check whether this update would be possible.
+                    pygasus = model.__pygasus__[name]
+                    pygasus.validate_update(None, None, obj)
                 elif issubclass(f_type, enum.Enum):
                     try:
                         value = f_type(value)
@@ -931,6 +995,11 @@ class SQLStorageEngine(AbstractStorageEngine):
                         col = getattr(obj, name)
                         col.parent = obj
                         obj._exists = True
+
+                # Update Pygasus fields.
+                for pygasus in type(obj).__pygasus__.values():
+                    value = attrs.get(pygasus.name)
+                    pygasus.perform_update(obj, None, value)
 
             objs.extend(others)
 

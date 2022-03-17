@@ -29,14 +29,18 @@
 
 """Field dynamic decorator to wrap pydantic.ModelField."""
 
+from typing import Any, TYPE_CHECKING
+
 from pydantic.main import ModelField
+
+if TYPE_CHECKING:
+    from pygasus.model.base import Model  # pragma: no cover
+    from pygasus.storage.abc import AbstractStorageEngine  # pragma: no cover
 
 
 class PygasusField:
 
     """Pygasus field, wrapping around a Pydantic ModelField."""
-
-    __slots__ = ("__field__", "__model__", "__storage__")
 
     def __init__(self, field: ModelField):
         self.__field__ = field
@@ -44,7 +48,7 @@ class PygasusField:
         self.__storage__ = None
 
     def __getattr__(self, key):
-        if key in type(self).__slots__:
+        if key.startswith("__") and key.endswith("__"):
             raise AttributeError
         return getattr(self.__field__, key)
 
@@ -81,3 +85,58 @@ class PygasusField:
     def has_not(self, value):
         """Return models without the field having this value (flag)."""
         return self.__storage__.query_builder.has_not(self, value)
+
+    # Methods that can be overridden by subclasses.
+    def bind(self, model: "Model", storage: "AbstractStorageEngine"):
+        """Bind this field to the model and storage engine."""
+        self.__model__ = model
+        self.__storage__ = storage
+
+    def validate_update(self, model: "Model", old_value: Any, new_value: Any):
+        """Validate whether updating this field is possible.
+
+        This method should raise an appropriate exception
+        if the update isn't allowed for any reason.
+
+        Args:
+            model (Model): the model object to be updated.
+            old_value (Any): the old value.
+            new_value (Any): the new value which will be applied
+                    if this method doesn't raise any exception.
+
+        """
+
+    def perform_update(self, model: "Model", old_value: Any, new_value: Any):
+        """Update and propagate the update of this field.
+
+        This method is used to propagate updates to linked fields,
+        for instance, the value of updated linked fields through relations.
+
+        Args:
+            model (Model): the model object to be updated.
+            old_value (Any): the old value.
+            new_value (Any): the new value already set in the model.
+
+        """
+
+    def validate_delete(self, model: "Model"):
+        """Validate whether deleting this field is possible.
+
+        This method should raise an appropriate exception
+        if the deletion isn't allowed for any reason.
+
+        Args:
+            model (Model): the model object to be updated.
+
+        """
+
+    def perform_delete(self, model: "Model"):
+        """Delete and propagate if necessary.
+
+        This method is used to propagate deletions to linked fields,
+        for instance, the value of deleted linked fields through relations.
+
+        Args:
+            model (Model): the model object to be updated.
+
+        """

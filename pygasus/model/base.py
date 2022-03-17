@@ -80,11 +80,11 @@ from typing import Any, Optional, Type
 from pydantic import BaseModel, Field, PrivateAttr  # noqa: F401
 from pydantic.main import ModelMetaclass
 
+from pygasus.field.base import PygasusField
+from pygasus.model.collections import Sequence
 from pygasus.model.decorators import LazyPropertyDescriptor, lazy_property
-from pygasus.model.field import PygasusField
 from pygasus.model.helpers import get_primary_keys
 from pygasus.model.repository import Repository
-from pygasus.model.collections import Sequence
 
 MODELS = set()
 
@@ -159,6 +159,15 @@ class Model(BaseModel, metaclass=MetaModel):
                 value.load_from_storage()
         return value
 
+    def __repr_args__(self):
+        args = dict(self.__dict__)
+        for key, value in args.items():
+            if isinstance(value, Model):
+                pkeys = get_primary_keys(value)
+                args[key] = str(pkeys)
+
+        return args.items()
+
     def __setattr__(self, key: str, value: Any):
         """Force an UPDATE operation on the storage."""
         old_value = getattr(self, key, ...)
@@ -168,12 +177,12 @@ class Model(BaseModel, metaclass=MetaModel):
             object.__setattr__(self, key, value)
             return
 
-        super().__setattr__(key, value)
         if exists and not key.startswith("_"):
             # Inform the repositories of a change.
             repository = type(self).repository
             if repository:
                 repository.update(self, key, old_value, value)
+        super().__setattr__(key, value)
 
     def __eq__(self, other):
         """Don't compare dict like Pydantic does, just compare field values."""
