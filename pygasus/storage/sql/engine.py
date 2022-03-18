@@ -544,7 +544,7 @@ class SQLStorageEngine(AbstractStorageEngine):
         columns, tables = self._get_columns_for(model)
         sql = select(*columns)
         for join in tables:
-            sql = sql.join(table)
+            sql = sql.join(table, isouter=True)
         sql = sql.where(query)
 
         # Send the query.
@@ -602,7 +602,7 @@ class SQLStorageEngine(AbstractStorageEngine):
         columns, tables = self._get_columns_for(model)
         query = select(*columns)
         for join in tables:
-            query = query.join(join)
+            query = query.join(join, isouter=True)
         where = []
         for column, value in kwargs.items():
             method = getattr(
@@ -659,7 +659,7 @@ class SQLStorageEngine(AbstractStorageEngine):
         columns, tables = self._get_columns_for(right_model)
         query = select(*columns)
         for join in tables:
-            query = query.join(join)
+            query = query.join(join, isouter=True)
 
         where = []
         for column, value in pks.items():
