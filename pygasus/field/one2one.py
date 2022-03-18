@@ -146,6 +146,14 @@ class One2OneField(PygasusField):
             model (Model): the model object to be updated.
 
         """
+        back = self.__back__
+        back_obj = getattr(model, self.name, None)
+        if back.required:
+            raise ValueError(
+                f"cannot delete {model}.{self.name}, since it would "
+                f"set {back_obj}.{back.name} to None, while this "
+                "field is mandatory"
+            )
 
     def perform_delete(self, model: "Model"):
         """Delete and propagate if necessary.
@@ -157,3 +165,9 @@ class One2OneField(PygasusField):
             model (Model): the model object to be updated.
 
         """
+        back = self.__back__
+        back_obj = getattr(model, self.name, None)
+        if back_obj:
+            back_obj._exists = False
+            setattr(back_obj, back.name, None)
+            back_obj._exists = True

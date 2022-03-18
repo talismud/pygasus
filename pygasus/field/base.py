@@ -49,7 +49,9 @@ class PygasusField:
 
     def __getattr__(self, key):
         if key.startswith("__") and key.endswith("__"):
-            raise AttributeError
+            raise AttributeError(
+                f"class {type(self).__name__} has no attribute {key!r}"
+            )
         return getattr(self.__field__, key)
 
     def __eq__(self, other):

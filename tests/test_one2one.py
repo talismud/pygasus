@@ -100,6 +100,50 @@ def test_create_shared_authors(db):
     assert carol is dickens.book
 
 
+def test_create_and_delete(db):
+    """Create an author and a book, then delete them."""
+    db.bind({Author, Book})
+    dickens = Author.repository.create(
+        first_name="Charles",
+        last_name="Dickens",
+        born_in=1812,
+    )
+    assert dickens.book is None
+    carol = Book.repository.create(
+        title="A Christmas Carol",
+        year=1843,
+        author=dickens,
+    )
+    assert carol.author is dickens
+    assert carol is dickens.book
+
+    # Delete Carol.  It should work at this point.
+    Book.repository.delete(carol)
+    assert dickens.book is None
+
+    # Doing the same, but deleting Dockens, it should raise an error.
+    dickens = Author.repository.create(
+        first_name="Charles",
+        last_name="Dickens",
+        born_in=1812,
+    )
+    assert dickens.book is None
+    carol = Book.repository.create(
+        title="A Christmas Carol",
+        year=1843,
+        author=dickens,
+    )
+    assert carol.author is dickens
+    assert carol is dickens.book
+
+    # Delete Carol.  It should work at this point.
+    with pytest.raises(ValueError):
+        Author.repository.delete(dickens)
+
+    assert dickens.book is carol
+    assert carol.author is dickens
+
+
 def test_create_and_update(db):
     """Create an author and a book, updating them."""
     db.bind({Author, Book})
@@ -268,3 +312,25 @@ def test_create_and_update_to_check_ownership(db):
     s2.account = a2
     assert a2.session is s2
     assert s2.account is a2
+
+
+def test_create_and_delete_to_check_ownership(db):
+    """Create and delete accounts and sessions."""
+    db.bind({Session, Account})
+
+    # Create two sessions and accounts without link.
+    s1 = Session.repository.create(name="session1")
+    s2 = Session.repository.create(name="session1")
+
+    a1 = Account.repository.create(admin=True)
+    a2 = Account.repository.create(admin=False)
+
+    # Update objects to link them.
+    a1.session = s1
+    s2.account = a2
+
+    # Delete objects.
+    Account.repository.delete(a2)
+    assert s2.account is None
+    Session.repository.delete(s1)
+    assert a1.session is None

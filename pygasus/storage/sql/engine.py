@@ -675,7 +675,14 @@ class SQLStorageEngine(AbstractStorageEngine):
         ]
         return objs
 
-    def update(self, model, instance, key, old_value, new_value):
+    def update(
+        self,
+        model: Type["Model"],
+        instance: "Model",
+        key: str,
+        old_value: Any,
+        new_value: Any,
+    ):
         """Update an instance attribute.
 
         Args:
@@ -684,6 +691,7 @@ class SQLStorageEngine(AbstractStorageEngine):
             key (str): the name of the attribute to modify.
             old_value (Any): the value before the modification.
             new_value (Any): the value after the modification.
+            check_update (bool): if True (default), check the update.
 
         """
         model_name = getattr(
@@ -733,7 +741,7 @@ class SQLStorageEngine(AbstractStorageEngine):
         f_type = field.type_
         pygasus = model.__pygasus__[field.name]
         if issubclass(f_type, Model):
-            if not field.field_info.extra.get("owner", True):
+            if not field.field_info.extra.get("owner", True) and new_value:
                 old_value = getattr(new_value, pygasus.__back__.name, None)
                 return self.update(
                     type(new_value),
@@ -756,7 +764,6 @@ class SQLStorageEngine(AbstractStorageEngine):
 
         # Check that this update can be performed.
         pygasus.validate_update(instance, old_value, new_value)
-
         pygasus.perform_update(instance, old_value, new_value)
 
         # Send the query.
@@ -784,6 +791,7 @@ class SQLStorageEngine(AbstractStorageEngine):
         for name, field in model.__fields__.items():
             info = field.field_info
             pk = info.extra.get("primary_key", False)
+            pygasus = model.__pygasus__[name]
             if pk:
                 value = getattr(instance, name)
                 # Convert other field types.
@@ -795,12 +803,18 @@ class SQLStorageEngine(AbstractStorageEngine):
                 sql_primary_keys.append(getattr(sql_table.c, name) == value)
                 pks.append(value)
 
+            pygasus.validate_delete(instance)
+
         # Remove this object from cache.
         self.cache.pop((model,) + tuple(pks), None)
 
         # Send the query.
         delete = sql_table.delete().where(*sql_primary_keys)
         self.connection.execute(delete)
+
+        # Apply other updates if necessary.
+        for pygasus in model.__pygasus__.values():
+            pygasus.perform_delete(instance)
 
     def bulk_delete(self, model: Type[Model], query) -> int:
         """Select one or more models with the specified query and delete them.
