@@ -95,6 +95,7 @@ class SQLStorageEngine(AbstractStorageEngine):
         self.memory = False
         self.tables = {}
         self.uniques = {}
+        self.futures = set()
 
     def init(
         self,
@@ -217,9 +218,22 @@ class SQLStorageEngine(AbstractStorageEngine):
                 back = self.get_back_field(model, field, f_type)
 
                 # Choose the owner field.
-                if not pygasus.required and back.required:
-                    info.extra["owner"] = False
-                    back.field_info.extra["owner"] = True
+                extra = info.extra
+                back_extra = back.field_info.extra
+                if extra.get("owner") and not back_extra.get("owner"):
+                    extra["owner"] = True
+                    back_extra["owner"] = False
+                elif not extra.get("owner") and back_extra.get("owner"):
+                    extra["owner"] = False
+                    back_extra["owner"] = True
+                elif pygasus.required and not back.required:
+                    extra["owner"] = True
+                    back_extra["owner"] = False
+                elif not pygasus.required and back.required:
+                    extra["owner"] = False
+                    back_extra["owner"] = True
+
+                if not extra.get("owner"):
                     continue
 
                 # Create foreign key fields.
@@ -941,18 +955,33 @@ class SQLStorageEngine(AbstractStorageEngine):
                     and issubclass(f_type, Model)
                     and o_type is not Sequence[f_type]
                 ):
-                    if f_type in done:
-                        continue
+                    if not field.required:
+                        attrs[name] = field.get_default()
 
-                    obj = self._build_objects_from_row(
-                        row, (f_type,), done=tuple(done)
-                    )
-                    others.append(obj)
-                    attrs[name] = obj
+                        # Prepare the future.
+                        pkeys = tuple(
+                            row[f"{model_name}_{pk.name}"]
+                            for pk in model.__fields__.values()
+                            if pk.field_info.extra.get("primary_key", False)
+                        )
+                        link_pkeys = tuple(
+                            row[f"{name}_{pk.name}"]
+                            for pk in f_type.__fields__.values()
+                            if pk.field_info.extra.get("primary_key", False)
+                        )
+                        self.futures.add(
+                            (model, pkeys, name, f_type, link_pkeys)
+                        )
+                    else:
+                        obj = self._build_objects_from_row(
+                            row, (f_type,), done=tuple(done)
+                        )
+                        others.append(obj)
+                        attrs[name] = obj
 
-                    # Check whether this update would be possible.
-                    pygasus = model.__pygasus__[name]
-                    pygasus.validate_update(None, None, obj)
+                        # Check whether this update would be possible.
+                        pygasus = model.__pygasus__[name]
+                        pygasus.validate_update(model, None, obj)
                 elif issubclass(f_type, enum.Enum):
                     try:
                         value = f_type(value)
@@ -1003,6 +1032,7 @@ class SQLStorageEngine(AbstractStorageEngine):
 
             objs.extend(others)
 
+        self._apply_futures()
         if not objs:
             objs = [None]
 
@@ -1018,3 +1048,14 @@ class SQLStorageEngine(AbstractStorageEngine):
     def uuid_to_storage(self, model: Model, field: Field, value: UUID) -> str:
         """Convert a UUID to a str representation."""
         return value.hex
+
+    def _apply_futures(self):
+        """Try to apply the futures."""
+        for model, pks, key, link_model, link_pks in tuple(self.futures):
+            obj = self.cache.get((model,) + pks)
+            to_link = self.cache.get((link_model,) + link_pks)
+            if obj is not None and to_link is not None:
+                obj._exists = False
+                setattr(obj, key, to_link)
+                obj._exists = True
+                self.futures.discard((model, pks, key, link_model, link_pks))

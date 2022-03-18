@@ -26,6 +26,24 @@ class Book(Model):
     year: int
 
 
+class Session(Model):
+
+    """A simple session with an account connected."""
+
+    id: int = Field(primary_key=True)
+    name: str
+    account: Optional["Account"] = None
+
+
+class Account(Model):
+
+    """An account connected to a session."""
+
+    id: int = Field(primary_key=True)
+    admin: bool
+    session: Optional["Session"] = Field(None, owner=True)
+
+
 def test_create_and_link_afterwards(db):
     """Create an author and a book, connecting them later."""
     db.bind({Author, Book})
@@ -143,3 +161,110 @@ def test_create_and_update(db):
         london.book = carol
     assert rover.author is london
     assert london.book is rover
+
+
+def test_create_and_get(db):
+    """Create several models and get them, with or without cache."""
+    db.bind({Author, Book})
+    dickens = Author.repository.create(
+        first_name="Charles",
+        last_name="Dickens",
+        born_in=1812,
+    )
+    assert dickens.book is None
+    carol = Book.repository.create(
+        title="A Christmas Carol",
+        year=1843,
+        author=dickens,
+    )
+    assert carol.author is dickens
+    assert carol is dickens.book
+
+    # Create a new author.
+    london = Author.repository.create(
+        first_name="Jack",
+        last_name="London",
+        born_in=1876,
+    )
+    rover = Book.repository.create(
+        title="The Star Rover",
+        year=1915,
+        author=london,
+    )
+    assert rover.author is london
+    assert rover is london.book
+
+    # Clear up the cache and retrieve these objects.
+    db.cache.clear()
+    carol = Book.repository.get(id=carol.id)
+    dickens = Author.repository.get(id=dickens.id)
+    assert dickens.book is carol
+    assert carol.author is dickens
+
+    # Try again, from the other side.
+    db.cache.clear()
+    dickens = Author.repository.get(id=dickens.id)
+    carol = Book.repository.get(id=carol.id)
+    assert dickens.book is carol
+    assert carol.author is dickens
+
+
+def test_create_to_check_ownership(db):
+    """Test session and account by linking them on creation."""
+    db.bind({Session, Account})
+
+    # Create two sessions and accounts without link.
+    s1 = Session.repository.create(name="session1")
+    s2 = Session.repository.create(name="session1")
+
+    a1 = Account.repository.create(admin=True, session=s1)
+    a2 = Account.repository.create(admin=False, session=s2)
+    assert a1.session is s1
+    assert s1.account is a1
+    assert a2.session is s2
+    assert s2.account is a2
+
+
+def test_create_and_get_to_check_ownership(db):
+    """Test session and account in creation and get."""
+    db.bind({Session, Account})
+
+    # Create two sessions and accounts without link.
+    s1 = Session.repository.create(name="session1")
+    s2 = Session.repository.create(name="session1")
+
+    a1 = Account.repository.create(admin=True, session=s1)
+    a2 = Account.repository.create(admin=False, session=s2)
+
+    # Clear the cache and get these objects.
+    db.cache.clear()
+    s1 = Session.repository.get(id=s1.id)
+    a1 = Account.repository.get(id=a1.id)
+    a2 = Account.repository.get(id=a2.id)
+    s2 = Session.repository.get(id=s2.id)
+
+    assert a1.session is s1
+    assert s1.account is a1
+    assert a2.session is s2
+    assert s2.account is a2
+
+
+def test_create_and_update_to_check_ownership(db):
+    """Test session and account which are optionally linked."""
+    db.bind({Session, Account})
+
+    # Create two sessions and accounts without link.
+    s1 = Session.repository.create(name="session1")
+    s2 = Session.repository.create(name="session1")
+
+    a1 = Account.repository.create(admin=True)
+    a2 = Account.repository.create(admin=False)
+
+    # Update objects to link them.
+    a1.session = s1
+    assert a1.session is s1
+    assert s1.account is a1
+
+    s2.account = a2
+    assert a2.session is s2
+    assert s2.account is a2
