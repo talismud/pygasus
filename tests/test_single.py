@@ -17,7 +17,7 @@ class User(Model):
     age: int
     height: float
     creation: datetime = Field(default_factory=datetime.utcnow)
-    email: Optional[EmailStr] = Field("test@test.com", index=True, unique=True)
+    email: Optional[EmailStr] = Field(None, index=True, unique=True)
 
 
 def test_log(db):
@@ -38,13 +38,10 @@ def test_log(db):
     standard = StringIO()
     stdout = sys.stdout
     sys.stdout = standard
-    user = User.repository.create(
-        name="Vincent", age=33, height=5.7, email="some@thing.com"
-    )
+    user = User.repository.create(name="Vincent", age=33, height=5.7)
     sys.stdout = stdout
     standard.seek(0)
     assert len(standard.read()) > 1
-
 
 
 def test_create(db):
@@ -57,7 +54,7 @@ def test_create(db):
     assert user.name == "Vincent"
     assert user.age == 33
     assert user.height == 5.7
-    assert user.email == "test@test.com"
+    assert user.email is None
 
 
 def test_create_and_get(db):
@@ -319,7 +316,7 @@ def test_update(db):
     assert user.name == "Vincent"
     assert user.age == 21
     assert user.height == 5.7
-    assert user.email == "test@test.com"
+    assert user.email is None
 
 
 def test_update_and_get(db):
@@ -346,7 +343,7 @@ def test_update_and_retrieve_with_a_clean_cache(db):
     assert user.name == retrieved.name
     assert user.age == retrieved.age
     assert user.height == retrieved.height
-    assert user.email == "test@test.com"
+    assert user.email == retrieved.email
 
 
 def test_delete(db):
