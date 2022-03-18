@@ -1,4 +1,6 @@
 from datetime import datetime
+from io import StringIO
+import sys
 from typing import Optional
 
 from pydantic import EmailStr
@@ -16,6 +18,33 @@ class User(Model):
     height: float
     creation: datetime = Field(default_factory=datetime.utcnow)
     email: Optional[EmailStr] = Field("test@test.com", index=True, unique=True)
+
+
+def test_log(db):
+    """Create a user testing logs."""
+    db.bind({User})
+    messages = []
+    def log(statement, args):
+        messages.append((statement, args))
+
+    db.logging = log
+    user = User.repository.create(name="Vincent", age=33, height=5.7)
+
+    # Check that the log function was called.
+    assert len(messages) > 0
+
+    # Test the default mprint log.
+    db.logging = True # same as db.logging = print
+    standard = StringIO()
+    stdout = sys.stdout
+    sys.stdout = standard
+    user = User.repository.create(
+        name="Vincent", age=33, height=5.7, email="some@thing.com"
+    )
+    sys.stdout = stdout
+    standard.seek(0)
+    assert len(standard.read()) > 1
+
 
 
 def test_create(db):

@@ -33,7 +33,7 @@ from datetime import date, datetime
 import enum
 import operator
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
 from uuid import UUID
 
 
@@ -101,10 +101,9 @@ class SQLStorageEngine(AbstractStorageEngine):
         self,
         file_name: Union[str, Path, None] = None,
         memory: bool = False,
-        logging: bool = True,
+        logging: Union[bool, Callable[[str, Tuple[Any]], None]] = True,
     ):
-        """
-        Initialize the storage engine.
+        """Initialize the storage engine.
 
         Args:
             file_name (str or Path): the file_name in which the database
@@ -145,8 +144,10 @@ class SQLStorageEngine(AbstractStorageEngine):
         # Intercept requests to log them, if set.
         @event.listens_for(self.engine, "before_cursor_execute")
         def log_query(conn, cr, statement, parameters, *_):
+            log = self.logging
+            log = log if callable(log) else print
             if self.logging:
-                print(statement.strip(), parameters)
+                log(statement.strip(), parameters)
 
         self.connection = self.engine.connect()
         self.metadata = MetaData()
