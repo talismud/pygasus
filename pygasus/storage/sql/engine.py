@@ -939,6 +939,7 @@ class SQLStorageEngine(AbstractStorageEngine):
             attrs = {}
             others = []
             pks = []
+            not_set = False
             for name, field in model.__fields__.items():
                 info = field.field_info
                 o_type = field.outer_type_
@@ -947,8 +948,11 @@ class SQLStorageEngine(AbstractStorageEngine):
                 value = row.get(f"{model_name}_{name}", ...)
                 custom = self.custom_fields.get((model, field.name))
                 if pk:
-                    if value is not ...:
-                        pks.append(value)
+                    if value is ... or value is None:
+                        not_set = True
+                        break
+
+                    pks.append(value)
 
                     # Convert the field, if necessary.
                     value = row[f"{model_name}_{name}"]
@@ -1018,6 +1022,10 @@ class SQLStorageEngine(AbstractStorageEngine):
                         value = method(model, field, value)
 
                     attrs[name] = value
+
+            # If the object is not complete, don't build it.
+            if not_set:
+                continue
 
             obj = self.cache.get((model,) + tuple(pks))
             if obj is not None:

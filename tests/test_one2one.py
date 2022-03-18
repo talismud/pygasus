@@ -275,10 +275,12 @@ def test_create_and_get_to_check_ownership(db):
 
     # Create two sessions and accounts without link.
     s1 = Session.repository.create(name="session1")
-    s2 = Session.repository.create(name="session1")
+    s2 = Session.repository.create(name="session2")
+    s3 = Session.repository.create(name="session3")
 
     a1 = Account.repository.create(admin=True, session=s1)
     a2 = Account.repository.create(admin=False, session=s2)
+    a3 = Account.repository.create(admin=False)
 
     # Clear the cache and get these objects.
     db.cache.clear()
@@ -286,11 +288,15 @@ def test_create_and_get_to_check_ownership(db):
     a1 = Account.repository.get(id=a1.id)
     a2 = Account.repository.get(id=a2.id)
     s2 = Session.repository.get(id=s2.id)
+    a3 = Account.repository.get(id=a3.id)
+    s3 = Session.repository.get(id=s3.id)
 
     assert a1.session is s1
     assert s1.account is a1
     assert a2.session is s2
     assert s2.account is a2
+    assert a3.session is None
+    assert s3.account is None
 
 
 def test_create_and_update_to_check_ownership(db):
