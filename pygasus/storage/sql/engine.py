@@ -444,9 +444,12 @@ class SQLStorageEngine(AbstractStorageEngine):
             info = field.field_info
             f_type = field.type_
             pk = info.extra.get("primary_key", False)
-            if pk and issubclass(f_type, int):
-                value = next(primary_keys)
-                setattr(obj, name, value)
+            if pk:
+                if issubclass(f_type, int):
+                    value = next(primary_keys)
+                    setattr(obj, name, value)
+                else:
+                    value = attrs[name]
                 pks.append(value)
             elif name in linked:
                 # This is a linked field, we need to set the parent.
