@@ -497,35 +497,36 @@ class SQLStorageEngine(AbstractStorageEngine):
         table = self.tables[model_name]
         additional = {}
         for name, field in model.__fields__.items():
-            o_type = field.outer_type_
             f_type = field.type_
-            if issubclass(f_type, Model) and o_type is not Sequence[f_type]:
-                right = attrs[name]
-                cmp = operator.le if index < 0 else operator.ge
-                where = [cmp(getattr(table.c, f"{name}__index"), index)]
-                primary_keys = {
-                    name: field
-                    for name, field in f_type.__fields__.items()
-                    if field.field_info.extra.get("primary_key")
-                }
+            if issubclass(f_type, Model):
+                back = self.get_back_field(model, field, f_type)
+                if back.shape == SHAPE_LIST:
+                    right = attrs.get(name, field.get_default())
+                    cmp = operator.le if index < 0 else operator.ge
+                    where = [cmp(getattr(table.c, f"{name}__index"), index)]
+                    primary_keys = {
+                        name: field
+                        for name, field in f_type.__fields__.items()
+                        if field.field_info.extra.get("primary_key")
+                    }
 
-                for pname, pfield in primary_keys.items():
-                    where.append(
-                        getattr(table.c, f"{name}_{pname}")
-                        == getattr(right, pname)
+                    for pname, pfield in primary_keys.items():
+                        where.append(
+                            getattr(table.c, f"{name}_{pname}")
+                            == getattr(right, pname)
+                        )
+
+                    # Create and send the query.
+                    col_name = f"{name}__index"
+                    col = getattr(table.c, col_name)
+                    new_value = (col - 1) if index < 0 else (col + 1)
+                    update = (
+                        table.update()
+                        .where(*where)
+                        .values({getattr(table.c, col_name): new_value})
                     )
-
-                # Create and send the query.
-                col_name = f"{name}__index"
-                col = getattr(table.c, col_name)
-                new_value = (col - 1) if index < 0 else (col + 1)
-                update = (
-                    table.update()
-                    .where(*where)
-                    .values({getattr(table.c, col_name): new_value})
-                )
-                self.connection.execute(update)
-                additional[col_name] = index
+                    self.connection.execute(update)
+                    additional[col_name] = index
         return self.insert(model, attrs, additional)
 
     def select(self, model: Type[Model], query):
