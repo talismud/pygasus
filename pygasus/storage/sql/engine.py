@@ -263,7 +263,7 @@ class SQLStorageEngine(AbstractStorageEngine):
                         Column(
                             f"{name}__index",
                             Integer,
-                            nullable=False,
+                            nullable=not field.required,
                         )
                     )
                 continue
@@ -383,7 +383,7 @@ class SQLStorageEngine(AbstractStorageEngine):
 
             custom = self.custom_fields.get((model, field.name))
             if custom:
-                value = attrs[name]
+                value = attrs.get(name, field.get_default())
                 sql[name] = custom.to_storage(value)
 
             if issubclass(f_type, Model):
@@ -399,7 +399,15 @@ class SQLStorageEngine(AbstractStorageEngine):
                 }
 
                 for pname, pfield in primary_keys.items():
-                    sql[f"{name}_{pname}"] = getattr(right, pname)
+                    value = getattr(right, pname)
+                    method = getattr(
+                        self,
+                        f"{pfield.outer_type_.__name__.lower()}_to_storage",
+                        None,
+                    )
+                    if method:
+                        value = method(model, pfield, value)
+                    sql[f"{name}_{pname}"] = value
 
                 exclude.add(name)
                 continue
@@ -765,6 +773,13 @@ class SQLStorageEngine(AbstractStorageEngine):
 
             for pname, pfield in linked_keys.items():
                 value = new_value and getattr(new_value, pname) or None
+                method = getattr(
+                    self,
+                    f"{pfield.outer_type_.__name__.lower()}_to_storage",
+                    None,
+                )
+                if method and value is not None:
+                    value = method(model, pfield, value)
                 sql_columns[f"{field.name}_{pname}"] = value
 
         # Check that this update can be performed.
