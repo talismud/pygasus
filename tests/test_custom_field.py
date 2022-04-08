@@ -18,9 +18,11 @@ class CustomDict(dict):
         super().__setitem__(key, value)
         self.save()
 
-    def save(self, old: dict):
+    def save(self):
         """Save the dictionary into the parent."""
-        setattr(self.parent, self.field, self)
+        type(self.parent).repository.update(
+            self.parent, self.field, {}, self.copy()
+        )
 
 
 class DictField(CustomField):
@@ -72,7 +74,7 @@ class Account(Model):
 
     id: int = Field(primary_key=True)
     name: str
-    options: dict = Field(custom_class=DictField)
+    options: dict = Field({}, custom_class=DictField)
 
 
 def test_create_account_with_no_option(db):
@@ -82,6 +84,21 @@ def test_create_account_with_no_option(db):
 
     # Create an account.
     account = Account.repository.create(name="test", options={})
+    assert account.options == {}
+
+    # Retrieve from the storage.
+    db.cache.clear()
+    account = Account.repository.get(id=account.id)
+    assert account.options == {}
+
+
+def test_create_account_with_default_option(db):
+    """Create a simple account."""
+    db.bind({Account})
+    db.add_custom_field(DictField)
+
+    # Create an account.
+    account = Account.repository.create(name="test")
     assert account.options == {}
 
     # Retrieve from the storage.
@@ -113,11 +130,34 @@ def test_create_account_and_update_options(db):
 
     # Create an account.
     account = Account.repository.create(name="test", options={})
-    options = {"thingie": 132}
-    account.options = options
-    assert account.options == options
+    saved = 12
+    account.options["saved"] = saved
+    assert account.options["saved"] == saved
 
     # Retrieve from the storage.
     db.cache.clear()
     account = Account.repository.get(id=account.id)
-    assert account.options == options
+    assert account.options["saved"] == saved
+
+    # Check that the object identity is correct.
+    assert account is account.options.parent
+
+
+def test_create_account_with_default_options_and_update_them(db):
+    """Create a simple account and update its options afterwards."""
+    db.bind({Account})
+    db.add_custom_field(DictField)
+
+    # Create an account.
+    account = Account.repository.create(name="test")
+    saved = 12
+    account.options["saved"] = saved
+    assert account.options["saved"] == saved
+
+    # Retrieve from the storage.
+    db.cache.clear()
+    account = Account.repository.get(id=account.id)
+    assert account.options["saved"] == saved
+
+    # Check that the object identity is correct.
+    assert account is account.options.parent

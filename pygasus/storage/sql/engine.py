@@ -384,7 +384,9 @@ class SQLStorageEngine(AbstractStorageEngine):
             custom = self.custom_fields.get((model, field.name))
             if custom:
                 value = attrs.get(name, field.get_default())
-                sql[name] = custom.to_storage(value)
+                to_store = custom.to_storage(value)
+                attrs[name] = custom.to_field(to_store)
+                sql[name] = to_store
 
             if issubclass(f_type, Model):
                 right = attrs.get(name, field.get_default())
@@ -475,6 +477,10 @@ class SQLStorageEngine(AbstractStorageEngine):
                 obj._exists = False
                 setattr(getattr(obj, name), "parent", obj)
                 obj._exists = True
+            elif self.custom_fields.get((model, field.name)):
+                custom = getattr(obj, name)
+                custom.parent = obj
+                custom.field = name
 
         return obj
 
