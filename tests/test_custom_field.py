@@ -161,3 +161,21 @@ def test_create_account_with_default_options_and_update_them(db):
 
     # Check that the object identity is correct.
     assert account is account.options.parent
+
+
+def test_create_account_in_pickled_options(db):
+    """Create a simple account and save it in another."""
+    db.bind({Account})
+    db.add_custom_field(DictField)
+
+    # Create an account.
+    account = Account.repository.create(name="test")
+    other = Account.repository.create(name="test2")
+    account.options["other"] = other
+    assert account.options["other"] is other
+
+    # Retrieve from the storage.
+    db.cache.clear()
+    account = Account.repository.get(id=account.id)
+    other = Account.repository.get(id=other.id)
+    assert account.options["other"] is other

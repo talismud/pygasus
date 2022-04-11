@@ -205,6 +205,9 @@ class Model(BaseModel, metaclass=MetaModel):
 
         return common
 
+    def __reduce__(self):
+        return (retrieve, (type(self), get_primary_keys(self)))
+
 
 def load_repository(path: str, model: Type[Model]) -> Repository:
     """Try to load and return the repository."""
@@ -239,3 +242,8 @@ def load_repository(path: str, model: Type[Model]) -> Repository:
         )
     else:
         return repository_cls(model)
+
+
+def retrieve(model, primary_keys):
+    """Try to retrieve an object from the repossitory."""
+    return model.repository.get(**primary_keys)
