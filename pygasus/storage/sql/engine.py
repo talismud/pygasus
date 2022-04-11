@@ -955,6 +955,7 @@ class SQLStorageEngine(AbstractStorageEngine):
         done = list(done)
         customs = []
         for model in models:
+            customs = []
             done.append(model)
             model_name = getattr(
                 model.__config__, "model_name", model.__name__.lower()
