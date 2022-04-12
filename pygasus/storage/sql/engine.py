@@ -566,10 +566,10 @@ class SQLStorageEngine(AbstractStorageEngine):
         table = self.tables[model_name]
         models = [model]
         columns, tables = self._get_columns_for(model)
-        sql = select(*columns)
+        sql = select(*columns).select_from(table)
         for join, on in tables:
             models.append(self.models[join.name])
-            sql = sql.join(table, onclause=on, isouter=True)
+            sql = sql.join(join, onclause=on, isouter=True)
         sql = sql.where(query)
 
         # Send the query.
