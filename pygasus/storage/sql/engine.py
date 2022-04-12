@@ -31,6 +31,8 @@
 
 from datetime import date, datetime
 import enum
+from functools import reduce
+from itertools import count
 import operator
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
@@ -96,6 +98,7 @@ class SQLStorageEngine(AbstractStorageEngine):
         self.tables = {}
         self.uniques = {}
         self.futures = set()
+        self.relations = count(1)
 
     def init(
         self,
@@ -176,6 +179,9 @@ class SQLStorageEngine(AbstractStorageEngine):
         """
         super().bind(models)
         self.metadata.create_all(self.engine)
+        for model in models:
+            for field in model.__fields__.values():
+                self._count_relationships(model, field)
 
     def bind_model(self, model: Type[Model], names: Dict[str, Any]):
         """Bind this controller to a specific model.
@@ -561,8 +567,9 @@ class SQLStorageEngine(AbstractStorageEngine):
         models = [model]
         columns, tables = self._get_columns_for(model)
         sql = select(*columns)
-        for join in tables:
-            sql = sql.join(table, isouter=True)
+        for join, on in tables:
+            models.append(self.models[join.name])
+            sql = sql.join(table, onclause=on, isouter=True)
         sql = sql.where(query)
 
         # Send the query.
@@ -603,24 +610,28 @@ class SQLStorageEngine(AbstractStorageEngine):
         for name, field in model.__fields__.items():
             info = field.field_info
             o_type = field.outer_type_
-            f_type = field.type_
             pk = info.extra.get("primary_key", False)
             if pk:
                 value = kwargs.get(name, ...)
                 if value is not ...:
+                    method = getattr(
+                        self,
+                        f"{o_type.__name__.lower()}_to_storage",
+                        None,
+                    )
+                    if method:
+                        value = method(model, field, value)
                     pks.append(value)
-            elif issubclass(f_type, Model) and o_type is not Sequence[f_type]:
-                # Join up.
-                models.append(f_type)
 
         obj = self.cache.get((model,) + tuple(pks))
         if obj is not None:
             return obj
 
         columns, tables = self._get_columns_for(model)
-        query = select(*columns)
-        for join in tables:
-            query = query.join(join, isouter=True)
+        query = select(*columns).select_from(table)
+        for join, on in tables:
+            models.append(self.models[join.name])
+            query = query.join(join, onclause=on, isouter=True)
         where = []
         for column, value in kwargs.items():
             method = getattr(
@@ -631,7 +642,6 @@ class SQLStorageEngine(AbstractStorageEngine):
 
             where.append(getattr(table.c, column) == value)
         query = query.where(*where)
-
         # Send the query.
         rows = self.connection.execute(query).fetchall()
         if len(rows) == 0 or len(rows) < 1:
@@ -675,9 +685,11 @@ class SQLStorageEngine(AbstractStorageEngine):
                     pks[f"{left_model_name}_{name}"] = value
 
         columns, tables = self._get_columns_for(right_model)
-        query = select(*columns)
-        for join in tables:
-            query = query.join(join, isouter=True)
+        query = select(*columns).select_from(table)
+        models = [right_model]
+        for join, on in tables:
+            models.append(self.models[join.name])
+            query = query.join(join, onclause=on, isouter=True)
 
         where = []
         for column, value in pks.items():
@@ -689,7 +701,7 @@ class SQLStorageEngine(AbstractStorageEngine):
         # Send the query.
         rows = self.connection.execute(query).fetchall()
         objs = [
-            self._build_objects_from_row(dict(row), [right_model], first=True)
+            self._build_objects_from_row(dict(row), models, first=True)
             for row in rows
         ]
         return objs
@@ -886,20 +898,25 @@ class SQLStorageEngine(AbstractStorageEngine):
         return ret.rowcount
 
     def _get_columns_for(
-        self, model: Type[Model], recursion=True
-    ) -> Tuple[Column]:
+        self, model: Type[Model], relations: Optional[Set[int]] = None
+    ) -> Tuple[Tuple[Column], Tuple[str]]:
         """Return the relevant columns for the specified model.
+
+        This method returns the list of columns an list of tables to join.
 
         Args:
             model (subclass of Model): the model.
+            relations (set, optional): the relationships already explored.
 
         Returns:
-            columns (tuple of Column): the labelled columns for this model.
+            columns, tables (tuple of Column): the labelled columns for
+                    this model.
 
         """
         model_name = getattr(
             model.__config__, "model_name", model.__name__.lower()
         )
+        relations = relations or set()
         columns = []
         table = self.tables[model_name]
         tables = []
@@ -908,19 +925,24 @@ class SQLStorageEngine(AbstractStorageEngine):
             f_type = field.type_
             if issubclass(f_type, Model) and o_type is not Sequence[f_type]:
                 # Join up.
-                if recursion:
+                rel_count = field.field_info.extra["relationship_count"]
+                if rel_count not in relations:
                     tables.append(
-                        self.tables[
-                            getattr(
-                                f_type.__config__,
-                                "model_name",
-                                f_type.__name__.lower(),
-                            )
-                        ]
+                        (
+                            self.tables[
+                                getattr(
+                                    f_type.__config__,
+                                    "model_name",
+                                    f_type.__name__.lower(),
+                                )
+                            ],
+                            field.field_info.extra["relationship_on"],
+                        )
                     )
 
+                    relations.add(rel_count)
                     other_columns, other_tables = self._get_columns_for(
-                        f_type, recursion=False
+                        f_type, relations
                     )
                     columns.extend(other_columns)
                     tables.extend(other_tables)
@@ -978,8 +1000,6 @@ class SQLStorageEngine(AbstractStorageEngine):
                         not_set = True
                         break
 
-                    pks.append(value)
-
                     # Convert the field, if necessary.
                     value = row[f"{model_name}_{name}"]
                     method = getattr(
@@ -990,6 +1010,7 @@ class SQLStorageEngine(AbstractStorageEngine):
                     if method:
                         value = method(model, field, value)
 
+                    pks.append(value)
                     attrs[name] = value
                 elif custom:
                     value = custom.to_field(value)
@@ -1108,3 +1129,68 @@ class SQLStorageEngine(AbstractStorageEngine):
                 setattr(obj, key, to_link)
                 obj._exists = True
                 self.futures.discard((model, pks, key, link_model, link_pks))
+
+    def _count_relationships(self, model: Model, field: Field):
+        """If the field is a relation, count it."""
+        f_type = field.type_
+        if isinstance(f_type, type) and issubclass(f_type, Model):
+            # That's a relationship, look for the backward field.
+            back = self.get_back_field(model, field, f_type)
+            extra = "relationship_count"
+            count = field.field_info.extra.get(extra)
+            if count is None:
+                count = next(self.relations)
+                field.field_info.extra[extra] = count
+
+            # Replace to the back field if necessary.
+            back_count = back.field_info.extra.get(extra)
+            if back_count != count:
+                back.field_info.extra[extra] = count
+
+            # Determines the 'on' clause.
+            extra = "relationship_on"
+            on = field.field_info.extra.get(extra)
+            if on is None:
+                model_name = getattr(
+                    model.__config__, "model_name", model.__name__.lower()
+                )
+                back_name = getattr(
+                    f_type.__config__, "model_name", f_type.__name__.lower()
+                )
+                model_table = self.tables[model_name]
+                back_table = self.tables[back_name]
+                model_primary_keys = {
+                    p_name: p_field
+                    for p_name, p_field in model.__fields__.items()
+                    if p_field.field_info.extra.get("primary_key")
+                }
+                back_primary_keys = {
+                    p_name: p_field
+                    for p_name, p_field in f_type.__fields__.items()
+                    if p_field.field_info.extra.get("primary_key")
+                }
+                if not field.field_info.extra.get("owner", False):
+                    model_primary_keys, back_primary_keys = (
+                        back_primary_keys,
+                        model_primary_keys,
+                    )
+                    model_table, back_table = back_table, model_table
+                    model_name, back_name = back_name, model_name
+
+                join = []
+                for field1 in model_primary_keys.values():
+                    for field2 in back_primary_keys.values():
+                        join.append(
+                            getattr(back_table.c, field2.name)
+                            == getattr(
+                                model_table.c, f"{back_name}_{field2.name}"
+                            )
+                        )
+
+                on = reduce(operator.and_, join)
+                field.field_info.extra[extra] = on
+
+            # Replace to the back field if necessary.
+            back_on = back.field_info.extra.get(extra)
+            if back_on is None:
+                back.field_info.extra[extra] = on
