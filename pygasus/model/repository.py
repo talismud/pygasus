@@ -58,6 +58,20 @@ class Repository:
         """
         return self.storage_engine.insert(self.model, data)
 
+    def place_at(self, sequence, instance, index):
+        """Place the model at this location in a collection.
+
+        Args:
+            model (Model): the model to update.
+            sequence (Seqence): the sequence to edit.
+            instance (model): the instance to update.
+            index (int): whether 1 (begin) or -1 (end).
+
+        """
+        return self.storage_engine.place_at(
+            type(instance), sequence, instance, index
+        )
+
     def insert_at(self, *args, **data):
         """Create an object at a given index.
 

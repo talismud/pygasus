@@ -490,6 +490,113 @@ class SQLStorageEngine(AbstractStorageEngine):
 
         return obj
 
+    def place_at(
+        self,
+        model: Type[Model],
+        sequence,
+        instance: Model,
+        index: int,
+    ):
+        """Place an existing row at this index for this model.
+
+        The model is used to determine the collection in storage.
+
+        Args:
+            model (subclass of Model): the model class.
+            instance (Model): the model instance.
+            index (int): the index at which to add this object.
+            additional (opt dict): other attributes, not used in the model.
+
+        """
+        model_name = getattr(
+            model.__config__, "model_name", model.__name__.lower()
+        )
+        table = self.tables[model_name]
+        for name, field in model.__fields__.items():
+            f_type = field.type_
+            if f_type is sequence.left_model:
+                back = self.get_back_field(model, field, f_type)
+                if back.shape == SHAPE_LIST:
+                    col_name = f"{name}__index"
+                    col = getattr(table.c, col_name)
+
+                    # Calculate the primary keys for this field.
+                    primary_keys = {
+                        name: field
+                        for name, field in f_type.__fields__.items()
+                        if field.field_info.extra.get("primary_key")
+                    }
+
+                    pk_where = []
+                    for pname, pfield in primary_keys.items():
+                        pk_where.append(
+                            getattr(table.c, f"{name}_{pname}")
+                            == getattr(sequence.parent, pname)
+                        )
+
+                    # If the instance had another parent, redraw indexes.
+                    old_back = getattr(instance, name, None)
+                    old_parent = getattr(old_back, back.name, None)
+                    if old_parent:
+                        new_value = col - 1
+                        old_index = old_parent.index(instance)
+                        where = []
+                        for pname, pfield in primary_keys.items():
+                            where.append(
+                                getattr(table.c, f"{name}_{pname}")
+                                == getattr(old_back, pname)
+                            )
+
+                        where.append(
+                            getattr(table.c, f"{name}__index") >= old_index
+                        )
+
+                        update = (
+                            table.update()
+                            .where(*where)
+                            .values({getattr(table.c, col_name): new_value})
+                        )
+                        self.connection.execute(update)
+
+                    # Insert the value in the collection.
+                    if index + 2 > len(sequence):
+                        # We want to insert before the end of the sequence.
+                        # So we move these with a great index.
+                        new_value = col + 1
+                        where = list(pk_where)
+                        where.append(
+                            getattr(table.c, f"{name}__index") >= index
+                        )
+
+                        update = (
+                            table.update()
+                            .where(*where)
+                            .values({getattr(table.c, col_name): new_value})
+                        )
+                        self.connection.execute(update)
+
+                    # Finally, we assign the new index.
+                    where = []
+                    values = {col_name: index}
+                    for pname, pfield in model.__fields__.items():
+                        if not pfield.field_info.extra.get(
+                            "primary_key", False
+                        ):
+                            continue
+
+                        where.append(
+                            getattr(table.c, pfield.name)
+                            == getattr(instance, pname)
+                        )
+
+                    for pname, pfield in primary_keys.items():
+                        values[f"{name}_{pname}"] = getattr(
+                            sequence.parent, pname
+                        )
+
+                    update = table.update().where(*where).values(values)
+                    self.connection.execute(update)
+
     def insert_at(
         self,
         model: Type[Model],

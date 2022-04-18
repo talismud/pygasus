@@ -116,8 +116,41 @@ class Sequence(GenericModel, MutableSequence, Generic[model]):
     def __iter__(self):
         return iter(self.models)
 
-    def insert(self, index: int, value: model) -> None:
-        self.models.insert(index, value)
+    def index(self, model: model):
+        return self.models.index(model)
+
+    def insert(self, index: int, instance: model) -> None:
+        old_parent = getattr(instance, self.right_field.name, None)
+        old_sequence = getattr(old_parent, self.left_field.name, None)
+        self.left_model.repository.place_at(self, instance, index)
+
+        if old_parent:
+            instance._exists = False
+            setattr(instance, self.right_field.name, self.parent)
+            instance._exists = True
+
+        if old_sequence:
+            old_sequence.remove(instance)
+
+        self.models.insert(index, instance)
+
+    def append(self, instance: model) -> None:
+        old_parent = getattr(instance, self.right_field.name, None)
+        old_sequence = getattr(old_parent, self.left_field.name, None)
+        self.left_model.repository.place_at(self, instance, len(self))
+
+        if old_parent:
+            instance._exists = False
+            setattr(instance, self.right_field.name, self.parent)
+            instance._exists = True
+
+        if old_sequence:
+            old_sequence.remove(instance)
+
+        self.models.append(instance)
+
+    def remove(self, obj: model) -> None:
+        self.models.remove(obj)
 
     def append_new(self, **kwargs) -> model:
         """Append a new model object to the list.
@@ -132,7 +165,7 @@ class Sequence(GenericModel, MutableSequence, Generic[model]):
         """
         kwargs[self.right_field.name] = self.parent
         obj = self.right_model.repository.insert_at(len(self), **kwargs)
-        self.append(obj)
+        self.models.append(obj)
         return obj
 
     def insert_new(self, *args, **kwargs) -> model:
@@ -153,7 +186,7 @@ class Sequence(GenericModel, MutableSequence, Generic[model]):
         index = args[0]
         kwargs[self.right_field.name] = self.parent
         obj = self.right_model.repository.insert_at(index, **kwargs)
-        self.insert(index, obj)
+        self.models.insert(index, obj)
         return obj
 
     def load_from_storage(self):

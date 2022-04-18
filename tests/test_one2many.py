@@ -62,6 +62,105 @@ def test_create_two_lists(db):
     assert oliver in dickens.books
 
 
+def test_create_and_change_author(db):
+    """Create authors and books and change books."""
+    db.bind({Author, Book})
+    dickens = Author.repository.create(
+        first_name="Charles",
+        last_name="Dickens",
+        born_in=1812,
+    )
+    london = Author.repository.create(
+        first_name="Jack",
+        last_name="London",
+        born_in=1876,
+    )
+    carol = dickens.books.append_new(
+        title="A Christmas Carol",
+        year=1843,
+    )
+    pickwick = london.books.insert_new(
+        0, title="The Pickwick Papers", year=1836
+    )
+    rover = dickens.books.append_new(
+        title="The Star Rover",
+        year=1915,
+    )
+    wild = london.books.insert_new(0, title="The Call of the Wild", year=1903)
+    iron = london.books.append_new(title="The Iron Heel", year=1908)
+
+    # Test books belong to the proper authors in the right order.
+    assert carol in dickens.books
+    assert pickwick not in dickens.books
+    assert rover in dickens.books
+    assert wild not in dickens.books
+    assert carol not in london.books
+    assert pickwick in london.books
+    assert rover not in london.books
+    assert wild in london.books
+    assert iron in london.books
+    assert london.books[0] is wild
+    assert london.books[1] is pickwick
+    assert london.books[2] is iron
+
+    # Change the rover to London.
+    london.books.append(rover)
+    assert carol in dickens.books
+    assert pickwick not in dickens.books
+    assert rover not in dickens.books
+    assert wild not in dickens.books
+    assert carol not in london.books
+    assert pickwick in london.books
+    assert rover in london.books
+    assert wild in london.books
+    assert iron in london.books
+    assert london.books[0] is wild
+    assert london.books[1] is pickwick
+    assert london.books[2] is iron
+    assert london.books[3] is rover
+
+    # Change Pickwick's author to its rightful one.
+    dickens.books.insert(0, pickwick)
+    assert carol in dickens.books
+    assert pickwick in dickens.books
+    assert rover not in dickens.books
+    assert wild not in dickens.books
+    assert carol not in london.books
+    assert pickwick not in london.books
+    assert rover in london.books
+    assert wild in london.books
+    assert iron in london.books
+    assert dickens.books[0] is pickwick
+    assert dickens.books[1] is carol
+    assert london.books[0] is wild
+    assert london.books[1] is iron
+    assert london.books[2] is rover
+
+    # Clear the cache, the same result should be obtained.
+    db.cache.clear()
+    dickens = Author.repository.get(id=dickens.id)
+    london = Author.repository.get(id=london.id)
+    carol = Book.repository.get(id=carol.id)
+    pickwick = Book.repository.get(id=pickwick.id)
+    rover = Book.repository.get(id=rover.id)
+    wild = Book.repository.get(id=wild.id)
+    iron = Book.repository.get(id=iron.id)
+    assert carol in dickens.books
+    assert pickwick in dickens.books
+    assert rover not in dickens.books
+    assert wild not in dickens.books
+    assert carol not in london.books
+    assert pickwick not in london.books
+    assert rover in london.books
+    assert wild in london.books
+    assert iron in london.books
+    assert dickens.books[0] is pickwick
+    assert dickens.books[1] is carol
+    assert london.books[0] is wild
+    assert london.books[1] is iron
+    assert london.books[2] is rover
+
+
 def test_representations(db):
     """Test the model's representations."""
     db.bind({Author, Book})
