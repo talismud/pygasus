@@ -124,13 +124,12 @@ class Sequence(GenericModel, MutableSequence, Generic[model]):
         old_sequence = getattr(old_parent, self.left_field.name, None)
         self.left_model.repository.place_at(self, instance, index)
 
-        if old_parent:
-            instance._exists = False
-            setattr(instance, self.right_field.name, self.parent)
-            instance._exists = True
+        instance._exists = False
+        setattr(instance, self.right_field.name, self.parent)
+        instance._exists = True
 
         if old_sequence:
-            old_sequence.remove(instance)
+            old_sequence.models.remove(instance)
 
         self.models.insert(index, instance)
 
@@ -139,18 +138,29 @@ class Sequence(GenericModel, MutableSequence, Generic[model]):
         old_sequence = getattr(old_parent, self.left_field.name, None)
         self.left_model.repository.place_at(self, instance, len(self))
 
-        if old_parent:
-            instance._exists = False
-            setattr(instance, self.right_field.name, self.parent)
-            instance._exists = True
+        instance._exists = False
+        setattr(instance, self.right_field.name, self.parent)
+        instance._exists = True
 
         if old_sequence:
-            old_sequence.remove(instance)
+            old_sequence.models.remove(instance)
 
         self.models.append(instance)
 
-    def remove(self, obj: model) -> None:
-        self.models.remove(obj)
+    def remove(self, instance: model) -> None:
+        if self.right_field.required:
+            raise ValueError(
+                f"the field {self.right_field.name} on "
+                f"model {self.right_model.__name__} is required, "
+                "it can't be set to None"
+            )
+
+        old_parent = getattr(instance, self.right_field.name, None)
+        old_sequence = getattr(old_parent, self.left_field.name, None)
+        if old_sequence:
+            old_sequence.models.remove(instance)
+
+        setattr(instance, self.right_field.name, None)
 
     def append_new(self, **kwargs) -> model:
         """Append a new model object to the list.

@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 import pytest
 
@@ -105,6 +105,7 @@ def test_create_and_change_author(db):
 
     # Change the rover to London.
     london.books.append(rover)
+    assert rover.author is london
     assert carol in dickens.books
     assert pickwick not in dickens.books
     assert rover not in dickens.books
@@ -121,6 +122,7 @@ def test_create_and_change_author(db):
 
     # Change Pickwick's author to its rightful one.
     dickens.books.insert(0, pickwick)
+    assert pickwick.author is dickens
     assert carol in dickens.books
     assert pickwick in dickens.books
     assert rover not in dickens.books
@@ -221,3 +223,54 @@ def test_list_order(db):
     db.cache.clear()
     dickens = Author.repository.get(id=dickens.id)
     assert dickens.books == dickens_books
+
+
+class Character(Model):
+
+    """A character."""
+
+    id: int = Field(primary_key=True)
+    name: str
+    room: Optional["Room"] = Field(None, owner=True)
+
+
+class Room(Model):
+
+    """A room where character are."""
+
+    id: int = Field(primary_key=True)
+    title: str
+    characters: List["Character"] = None
+
+
+def test_move_character(db):
+    """Create a character and move it between rooms."""
+    db.bind({Character, Room})
+    character = Character.repository.create(name="test")
+    room1 = Room.repository.create(title="The first room")
+    room2 = Room.repository.create(title="The second room")
+
+    # Place character inside a room.
+    room1.characters.append(character)
+    assert character.room is room1
+
+    # Move the character.
+    room2.characters.insert(0, character)
+    assert character.room is room2
+
+    # Remove the character from a location.
+    room2.characters.remove(character)
+    assert character.room is None
+
+    # At this point, neither room should have any character.
+    assert room1.characters == []
+    assert room2.characters == []
+
+    # Check that the same is True after uncaching.
+    db.cache.clear()
+    character = Character.repository.get(id=character.id)
+    room1 = Room.repository.get(id=room1.id)
+    room2 = Room.repository.get(id=room2.id)
+    assert character.room is None
+    assert room1.characters == []
+    assert room2.characters == []
