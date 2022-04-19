@@ -472,7 +472,7 @@ class SQLStorageEngine(AbstractStorageEngine):
                 getattr(obj, name).parent = obj
 
         obj._exists = True
-        self.cache[(model,) + tuple(pks)] = obj
+        self.cache_instance(obj)
 
         for name, field in model.__fields__.items():
             info = field.field_info
@@ -730,7 +730,7 @@ class SQLStorageEngine(AbstractStorageEngine):
                         value = method(model, field, value)
                     pks.append(value)
 
-        obj = self.cache.get((model,) + tuple(pks))
+        obj = self.get_instance_from_cache(model, kwargs)
         if obj is not None:
             return obj
 
@@ -951,7 +951,7 @@ class SQLStorageEngine(AbstractStorageEngine):
             pygasus.validate_delete(instance)
 
         # Remove this object from cache.
-        self.cache.pop((model,) + tuple(pks), None)
+        self.delete_instance_from_cache(instance)
 
         # Send the query.
         delete = sql_table.delete().where(*sql_primary_keys)

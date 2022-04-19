@@ -30,7 +30,7 @@
 """Module containing the abstract class for storage engines."""
 
 from abc import ABCMeta, abstractmethod
-from typing import Dict, List, Optional, Set, Type
+from typing import Any, Dict, List, Optional, Set, Type
 
 from pygasus.model import CustomField, Field, Model, Sequence
 from pygasus.storage.query_builder import AbstractQueryBuilder
@@ -268,3 +268,128 @@ class AbstractStorageEngine(metaclass=ABCMeta):
             f"are: {fields}.  Perhaps you forgot to add a back reference "
             f"in the {left.__name__} model?"
         )
+
+    def cache_instance(self, instance: Model):
+        """Cache this model instance.
+
+        Args:
+            instance (Model): the model instance to cache.
+
+        """
+        # First, cache the PKs.
+        pks = []
+        uniques = {}
+        for name, field in type(instance).__fields__.items():
+            info = field.field_info
+            pk = info.extra.get("primary_key", False)
+            unique = info.extra.get("unique")
+            if pk or unique:
+                value = getattr(instance, name, ...)
+                if value is not ...:
+                    o_type = field.outer_type_
+                    method = getattr(
+                        self,
+                        f"{o_type.__name__.lower()}_to_storage",
+                        None,
+                    )
+                    if method:
+                        value = method(type(instance), field, value)
+
+                    if pk:
+                        pks.append(value)
+                    else:
+                        uniques[name] = value
+
+        # Cache primary key fields directly.
+        self.cache[(type(instance),) + tuple(pks)] = instance
+
+        # Cache unique indexes.
+        for key, value in uniques.items():
+            self.cache[(type(instance), key, value)] = instance
+
+    def get_instance_from_cache(
+        self, model: Type[Model], attributes: Dict[str, Any]
+    ) -> Optional[Model]:
+        """Get the model instance from the cache, return None if not found.
+
+        The object is retrieved based on the specified attributes.
+
+        Args:
+            model (Model subclass): the model subclass.
+            attributes (dict): the search attributes.
+
+        Returns:
+            instance (Model): the model instance if found, or None.
+
+        """
+        pks = []
+        uniques = {}
+        for name, field in model.__fields__.items():
+            info = field.field_info
+            pk = info.extra.get("primary_key", False)
+            unique = info.extra.get("unique")
+            if pk or unique:
+                value = attributes.get(name, ...)
+                if value is not ...:
+                    o_type = field.outer_type_
+                    method = getattr(
+                        self,
+                        f"{o_type.__name__.lower()}_to_storage",
+                        None,
+                    )
+                    if method:
+                        value = method(model, field, value)
+
+                    if pk:
+                        pks.append(value)
+                    else:
+                        uniques[name] = value
+
+        # If PKs, retrieve them.
+        if pks:
+            return self.cache.get((model,) + tuple(pks))
+
+        # Or retrieve from uniques.
+        for key, value in uniques.items():
+            instance = self.cache.get((model, key, value))
+            if instance:
+                return instance
+
+        return None
+
+    def delete_instance_from_cache(self, instance: Model):
+        """Remove this instance from the cache.
+
+        Args:
+            instance (Model): the model instance to remove from cache.
+
+        """
+        pks = []
+        uniques = {}
+        for name, field in type(instance).__fields__.items():
+            info = field.field_info
+            pk = info.extra.get("primary_key", False)
+            unique = info.extra.get("unique")
+            if pk or unique:
+                value = getattr(instance, name, ...)
+                if value is not ...:
+                    o_type = field.outer_type_
+                    method = getattr(
+                        self,
+                        f"{o_type.__name__.lower()}_to_storage",
+                        None,
+                    )
+                    if method:
+                        value = method(type(instance), field, value)
+
+                    if pk:
+                        pks.append(value)
+                    else:
+                        uniques[name] = value
+
+        # Remove primary key fields.
+        self.cache.pop((type(instance),) + tuple(pks), None)
+
+        # Remove unique indexes.
+        for key, value in uniques.items():
+            self.cache.pop((type(instance), key, value), None)
