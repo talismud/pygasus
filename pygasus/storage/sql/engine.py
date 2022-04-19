@@ -1111,7 +1111,7 @@ class SQLStorageEngine(AbstractStorageEngine):
                     value = row[f"{model_name}_{name}"]
                     method = getattr(
                         self,
-                        f"{type(value).__name__.lower()}_from_storage",
+                        f"{f_type.__name__.lower()}_from_storage",
                         None,
                     )
                     if method:
@@ -1169,7 +1169,7 @@ class SQLStorageEngine(AbstractStorageEngine):
                     value = row[f"{model_name}_{name}"]
                     method = getattr(
                         self,
-                        f"{type(value).__name__.lower()}_from_storage",
+                        f"{f_type.__name__.lower()}_from_storage",
                         None,
                     )
                     if method:
@@ -1181,7 +1181,7 @@ class SQLStorageEngine(AbstractStorageEngine):
             if not_set:
                 continue
 
-            obj = self.cache.get((model,) + tuple(pks))
+            obj = self.get_instance_from_cache(model, attrs)
             if obj is not None:
                 objs.append(obj)
             else:
@@ -1189,7 +1189,7 @@ class SQLStorageEngine(AbstractStorageEngine):
                 for field, name in customs:
                     field.parent = obj
                     field.field = name
-                self.cache[(model,) + tuple(pks)] = obj
+                self.cache_instance(obj)
                 objs.append(obj)
                 for name, field in model.__fields__.items():
                     info = field.field_info
